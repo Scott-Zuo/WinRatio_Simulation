@@ -1,0 +1,389 @@
+---
+title: "Win Ratio Simple Simulation Adjusted for Covariates"
+author: "Scott Zuo"
+output: 
+    html_document:
+      toc: TRUE
+      toc_float: true
+      theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Inverse Propensity Score Weighted Estimator
+
+
+## Non-Composite Endpoint with Ordinal Outcomes (1 column)
+
+- We want to start with only one ordinal outcome and observe how adjusting for covariates performs; after we see how effective the methods are in this case, we can then expand toward multiple ordinal outcomes or multiple outcomes of mixed distributional types.
+
+
+### Setting outcome levels
+
+
+```{r}
+#vector of outcomes as a factor with ordered levels
+outcomes_3lvl <- factor(c("first", "second", "third"), 
+                   levels = c("first", "second", "third"), 
+                   ordered = TRUE)
+
+#Order: first < second < third, the larger the better
+
+
+#number of observations in each group
+n_count <- 10
+```
+
+
+
+### Generating data from covariates
+
+- $$logodds_1 = ln(\frac{\pi_2+\pi_3}{\pi_1})$$
+- $$logodds_2 = ln(\frac{\pi_3}{\pi_1+\pi_2})$$
+
+
+```{r}
+
+set.seed(1)
+
+inv_logit <- function(logit) exp(logit) / (1 + exp(logit))
+
+x1_trt <- rnorm(n_count, mean = 1, sd = 0.1)
+trt_eff1 <- 0.5
+
+b1_trt <- 1
+
+
+x1_ctrl <- rnorm(n_count, mean = 1, sd = 0.1)
+
+b1_ctrl <- 0.5
+
+
+
+# trt outcome column
+b01 <- 1
+b02 <- 0.05
+
+logodds1_trt <- b01 + b1_trt * x1_trt + trt_eff1
+logodds2_trt <- b02 + b1_trt * x1_trt + trt_eff1
+
+
+
+## Probability
+
+prob_2to3_trt <- inv_logit(logodds1_trt)
+prob_3_trt <- inv_logit(logodds2_trt)
+
+prob_1_trt <- 1 - prob_2to3_trt
+prob_2_trt <- prob_2to3_trt - prob_3_trt
+
+
+
+# ctrl outcome column
+
+
+logodds1_ctrl <- b01 + b1_ctrl * x1_ctrl
+logodds2_ctrl <- b02 + b1_ctrl * x1_ctrl
+
+
+
+## Probability
+
+prob_2to3_ctrl <- inv_logit(logodds1_ctrl)
+prob_3_ctrl <- inv_logit(logodds2_ctrl)
+
+prob_1_ctrl <- 1 - prob_2to3_ctrl
+prob_2_ctrl <- prob_2to3_ctrl - prob_3_ctrl
+
+
+
+```
+
+
+
+### True Win Ratio
+
+
+```{r}
+
+#true probabilities trt column
+
+true_logodds1_trt <- 1 + 1 * 1 + 0.5
+true_logodds2_trt <- 0.05 + 1 * 1 + 0.5
+
+true_prob_2to3_trt <- inv_logit(true_logodds1_trt)
+
+true_prob_3_trt <- inv_logit(true_logodds2_trt)
+true_prob_1_trt <- 1 - true_prob_2to3_trt
+true_prob_2_trt <- true_prob_2to3_trt - true_prob_3_trt
+
+#c(true_prob_1_trt,true_prob_2_trt,true_prob_3_trt)
+#0.07585818 0.09922809 0.82491373
+
+#true probabilities ctrl column
+
+true_logodds1_ctrl <- 1 + 0.5 * 1
+true_logodds2_ctrl <- 0.05 + 0.5 * 1
+
+true_prob_2to3_ctrl <- inv_logit(true_logodds1_ctrl)
+
+true_prob_3_ctrl <- inv_logit(true_logodds2_ctrl)
+true_prob_1_ctrl <- 1 - true_prob_2to3_ctrl
+true_prob_2_ctrl <- true_prob_2to3_ctrl - true_prob_3_ctrl
+
+#c(true_prob_1_ctrl,true_prob_2_ctrl,true_prob_3_ctrl)
+# 0.1824255 0.1834389 0.6341356
+
+
+#trt: 0.07585818 0.09922809 0.82491373
+#ctrl: 0.1824255 0.1834389 0.6341356
+
+true_trt_wp_1col <- 0.82491373*(0.1824255+0.1834389) + 0.09922809*0.1824255
+true_ctrl_wp_1col <- 0.6341356*(0.09922809+0.07585818) + 0.1834389*0.07585818
+
+#True WR
+true_wr_1col <- true_trt_wp_1col/true_ctrl_wp_1col
+
+true_wr_1col
+#2.560418
+```
+
+
+
+### Simulation without using IPS Weighted Estimator
+
+
+```{r}
+
+set.seed(1)
+
+sim_num <- 1000
+WR_sim_1col <- numeric(sim_num)
+
+for (sim_count in 1:sim_num){
+  
+#generate random outcomes
+outcomes_trt <- c()
+for (i in 1:n_count) {
+  outcomes_trt[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_trt[i], prob_2_trt[i], prob_3_trt[i])
+  )
+}
+
+
+
+outcomes_ctrl <- c()
+for (i in 1:n_count) {
+  outcomes_ctrl[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_ctrl[i], prob_2_ctrl[i], prob_3_ctrl[i])
+  )
+}
+
+
+df_trt_1col <- data.frame(outcomes_trt)
+df_ctrl_1col <- data.frame(outcomes_ctrl)
+
+trtwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+ctrlwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+
+for (i in 1:nrow(df_trt_1col)){
+  for(j in 1:nrow(df_ctrl_1col)){
+
+      if (df_trt_1col[i,1] > df_ctrl_1col[j,1]){
+        trtwin_1col[i,j] = 1
+        ctrlwin_1col[i,j] = 0
+      }
+      else if (df_trt_1col[i,1] < df_ctrl_1col[j,1]){
+        trtwin_1col[i,j] = 0
+        ctrlwin_1col[i,j] = 1
+      }
+
+  }
+}
+
+
+trt_winpr_1col <- sum(as.vector(trtwin_1col), na.rm = T)/(nrow(df_trt_1col)*nrow(df_ctrl_1col))
+ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), na.rm = T)/(nrow(df_trt_1col)*nrow(df_ctrl_1col))
+
+WR_sim_1col[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
+
+  
+}
+
+WR_sim_noninf_1col <- WR_sim_1col[WR_sim_1col!=Inf & !is.na(WR_sim_1col)]
+
+summary(WR_sim_noninf_1col)
+
+
+```
+
+
+
+
+### Simulation using IPS Weighted Estimator
+
+```{r}
+set.seed(1)
+
+sim_num <- 1000
+WR_sim_1col_IPS <- numeric(sim_num)
+
+for (sim_count in 1:sim_num){
+  
+#generate random outcomes
+outcomes_trt <- c()
+for (i in 1:n_count) {
+  outcomes_trt[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_trt[i], prob_2_trt[i], prob_3_trt[i])
+  )
+}
+
+
+
+outcomes_ctrl <- c()
+for (i in 1:n_count) {
+  outcomes_ctrl[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_ctrl[i], prob_2_ctrl[i], prob_3_ctrl[i])
+  )
+}
+
+
+df_trt_1col <- data.frame(outcomes_trt)
+df_ctrl_1col <- data.frame(outcomes_ctrl)
+
+colnames(df_trt_1col) <- "outcomes_comb"
+colnames(df_ctrl_1col) <- "outcomes_comb"
+
+df_comb_1col <- rbind(df_trt_1col, df_ctrl_1col)
+df_comb_1col$treatment <- c(rep(1,10), rep(0,10))
+#df_comb_1col$trt_eff <- c(rep(0.5,10), rep(0,10))
+df_comb_1col$x_covariate <- c(x1_trt, x1_ctrl)
+
+###IPS
+PropScore <- glm(treatment~x_covariate, data = df_comb_1col, family=binomial)
+pi_func <- fitted(PropScore)
+
+trtwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+ctrlwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+
+for (i in 1:10){
+  for(j in 11:20){
+
+      if (df_comb_1col[i,1] > df_comb_1col[j,1]){
+        trtwin_1col[i,j-10] = (1/(pi_func[i]*(1-pi_func[j])))/2
+        ctrlwin_1col[i,j-10] = 0
+      }
+      else if (df_comb_1col[i,1] < df_comb_1col[j,1]){
+        trtwin_1col[i,j-10] = 0
+        ctrlwin_1col[i,j-10] = (1/(pi_func[i]*(1-pi_func[j])))/2
+      }
+
+  }
+}
+
+
+trt_winpr_1col <- sum(as.vector(trtwin_1col), na.rm = T)/(choose(20,2))
+ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), na.rm = T)/(choose(20,2))
+
+WR_sim_1col_IPS[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
+
+  
+}
+
+WR_sim_noninf_1col_IPS <- WR_sim_1col_IPS[WR_sim_1col_IPS!=Inf & !is.na(WR_sim_1col_IPS)]
+
+summary(WR_sim_noninf_1col_IPS)
+
+```
+
+- The way we set up the code:
+  - will only include the non-zero values among all comparisons
+  - $W_i = 1$ and $W_j = 0$ should be guaranteed
+
+
+
+### Simulation results display and comparison (one ordinal outcome)
+
+
+```{r, warning=FALSE}
+library(ggplot2)
+
+WR_sim_df_1col <- data.frame(WR_sim_noninf_1col)
+WR_sim_df_1col_IPS <- data.frame(WR_sim_noninf_1col_IPS)
+
+
+line.data_1col <- data.frame(xintercept = c(mean(WR_sim_noninf_1col), median(WR_sim_noninf_1col), true_wr_1col), 
+                        Lines = c("Mean", "Median", "True_WinRatio"),
+  color = c("red", "blue", "green"), stringsAsFactors = FALSE)
+
+line.data_1col_IPS <- data.frame(xintercept = c(mean(WR_sim_noninf_1col_IPS), median(WR_sim_noninf_1col_IPS), 
+                                                true_wr_1col), 
+                        Lines = c("Mean", "Median", "True_WinRatio"),
+  color = c("red", "blue", "green"), stringsAsFactors = FALSE)
+
+
+WR_hist1_1col <- ggplot(WR_sim_df_1col, aes(x=WR_sim_noninf_1col)) + 
+  geom_histogram(color="black", fill="white", binwidth = 1, aes(y=after_stat(density))) +
+  xlim(0, 25) +
+  geom_density(alpha=0.2, fill="salmon") +
+  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col, linewidth = 0.5) +
+  scale_colour_manual(values = line.data_1col$color) +
+  ggtitle("Simulation without adjusting for covariates") +
+  xlab("Win Ratio value") +
+  theme(
+    plot.title = element_text(color="red", size=12, face="bold.italic"),
+    axis.title.x = element_text(size=12),
+    axis.title.y = element_text(size=12)
+    )
+
+WR_hist1_1col_IPS <- ggplot(WR_sim_df_1col_IPS, aes(x=WR_sim_noninf_1col_IPS)) + 
+  geom_histogram(color="black", fill="white", binwidth = 1, aes(y=after_stat(density))) +
+  xlim(0, 25) +
+  geom_density(alpha=0.2, fill="salmon") +
+  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col_IPS, linewidth = 0.5) +
+  scale_colour_manual(values = line.data_1col_IPS$color) +
+  ggtitle("Simulation using Inverse Propensity Score Weighted Estimator") +
+  xlab("Win Ratio value") +
+  theme(
+    plot.title = element_text(color="red", size=12, face="bold.italic"),
+    axis.title.x = element_text(size=12),
+    axis.title.y = element_text(size=12)
+    )
+
+WR_hist1_1col
+WR_hist1_1col_IPS
+```
+
+
+
+
+
+## Composite Endpoint with Ordinal Outcomes (more than 1 column)
+
+- In the setting of composite endpoint, we will analyze the Win Ratio with two or more columns of ordinal outcomes in each group
+
+
+
+
+
+
+
+
+
+
+
+
+
+
