@@ -35,7 +35,7 @@ outcomes_3lvl <- factor(c("first", "second", "third"),
 
 
 #number of observations in each group
-n_count <- 30
+n_count <- 100
 ```
 
 
@@ -324,41 +324,43 @@ WR_sim_df_1col_IPS <- data.frame(WR_sim_noninf_1col_IPS)
 
 
 line.data_1col <- data.frame(xintercept = c(mean(WR_sim_noninf_1col), median(WR_sim_noninf_1col), true_wr_1col), 
-                        Lines = c("Mean", "Median", "True_WinRatio"),
-  color = c("red", "blue", "green"), stringsAsFactors = FALSE)
+                        Lines = c("Mean", "Median", "True WinRatio"),
+  color = c("black", "red", "gold"), stringsAsFactors = FALSE)
 
 line.data_1col_IPS <- data.frame(xintercept = c(mean(WR_sim_noninf_1col_IPS), median(WR_sim_noninf_1col_IPS), 
                                                 true_wr_1col), 
-                        Lines = c("Mean", "Median", "True_WinRatio"),
-  color = c("red", "blue", "green"), stringsAsFactors = FALSE)
+                        Lines = c("Mean", "Median", "True WinRatio"),
+  color = c("black", "red", "gold"), stringsAsFactors = FALSE)
 
 
 WR_hist1_1col <- ggplot(WR_sim_df_1col, aes(x=WR_sim_noninf_1col)) + 
-  geom_histogram(color="black", fill="white", binwidth = 1, aes(y=after_stat(density))) +
-  xlim(0, 25) +
-  geom_density(alpha=0.2, fill="salmon") +
-  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col, linewidth = 0.5) +
+  geom_histogram(color="grey", fill="white", binwidth = 1, aes(y=after_stat(density))) +
+  xlim(0, 20) +
+  geom_density(alpha=0.2, color = "grey", fill="salmon") +
+  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col, linewidth = 0.6) +
   scale_colour_manual(values = line.data_1col$color) +
   ggtitle("Simulation without adjusting for covariates") +
   xlab("Win Ratio value") +
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
-    axis.title.y = element_text(size=12)
+    axis.title.y = element_text(size=12),
+    legend.text = element_text(size=12)
     )
 
 WR_hist1_1col_IPS <- ggplot(WR_sim_df_1col_IPS, aes(x=WR_sim_noninf_1col_IPS)) + 
-  geom_histogram(color="black", fill="white", binwidth = 1, aes(y=after_stat(density))) +
-  xlim(0, 25) +
-  geom_density(alpha=0.2, fill="salmon") +
-  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col_IPS, linewidth = 0.5) +
+  geom_histogram(color="grey", fill="white", binwidth = 1, aes(y=after_stat(density))) +
+  xlim(0, 20) +
+  geom_density(alpha=0.2, color = "grey", fill="salmon") +
+  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col_IPS, linewidth = 0.6) +
   scale_colour_manual(values = line.data_1col_IPS$color) +
   ggtitle("Simulation using Inverse Propensity Score Weighted Estimator") +
   xlab("Win Ratio value") +
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
-    axis.title.y = element_text(size=12)
+    axis.title.y = element_text(size=12),
+    legend.text = element_text(size=12)
     )
 
 WR_hist1_1col
@@ -372,8 +374,6 @@ WR_hist1_1col_IPS
 ## Composite Endpoint with Ordinal Outcomes (more than 1 column)
 
 - In the setting of composite endpoint, we will analyze the Win Ratio with two or more columns of ordinal outcomes in each group
-
-
 
 
 
