@@ -35,7 +35,7 @@ outcomes_3lvl <- factor(c("first", "second", "third"),
 
 
 #number of observations in each group
-n_count <- 10
+n_count <- 30
 ```
 
 
@@ -267,8 +267,7 @@ colnames(df_trt_1col) <- "outcomes_comb"
 colnames(df_ctrl_1col) <- "outcomes_comb"
 
 df_comb_1col <- rbind(df_trt_1col, df_ctrl_1col)
-df_comb_1col$treatment <- c(rep(1,10), rep(0,10))
-#df_comb_1col$trt_eff <- c(rep(0.5,10), rep(0,10))
+df_comb_1col$treatment <- c(rep(1,n_count), rep(0,n_count))
 df_comb_1col$x_covariate <- c(x1_trt, x1_ctrl)
 
 ###IPS
@@ -278,24 +277,24 @@ pi_func <- fitted(PropScore)
 trtwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
 ctrlwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
 
-for (i in 1:10){
-  for(j in 11:20){
+for (i in 1:n_count){
+  for(j in (n_count+1):(2*n_count)){
 
       if (df_comb_1col[i,1] > df_comb_1col[j,1]){
-        trtwin_1col[i,j-10] = (1/(pi_func[i]*(1-pi_func[j])))/2
-        ctrlwin_1col[i,j-10] = 0
+        trtwin_1col[i,j-n_count] = (1/(pi_func[i]*(1-pi_func[j])))/2
+        ctrlwin_1col[i,j-n_count] = 0
       }
       else if (df_comb_1col[i,1] < df_comb_1col[j,1]){
-        trtwin_1col[i,j-10] = 0
-        ctrlwin_1col[i,j-10] = (1/(pi_func[i]*(1-pi_func[j])))/2
+        trtwin_1col[i,j-n_count] = 0
+        ctrlwin_1col[i,j-n_count] = (1/(pi_func[i]*(1-pi_func[j])))/2
       }
 
   }
 }
 
 
-trt_winpr_1col <- sum(as.vector(trtwin_1col), na.rm = T)/(choose(20,2))
-ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), na.rm = T)/(choose(20,2))
+trt_winpr_1col <- sum(as.vector(trtwin_1col), na.rm = T)/(choose(2*n_count,2))
+ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), na.rm = T)/(choose(2*n_count,2))
 
 WR_sim_1col_IPS[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
 
@@ -373,6 +372,12 @@ WR_hist1_1col_IPS
 ## Composite Endpoint with Ordinal Outcomes (more than 1 column)
 
 - In the setting of composite endpoint, we will analyze the Win Ratio with two or more columns of ordinal outcomes in each group
+
+
+
+
+
+
 
 
 
