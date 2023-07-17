@@ -1,0 +1,449 @@
+---
+title: "Win Ratio OW Relative Efficiency"
+author: "Scott Zuo"
+output: 
+    html_document:
+      toc: TRUE
+      toc_float: true
+      theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Overlap Weighting Estimator
+
+```{r}
+start_time <- Sys.time()
+```
+
+
+
+## Non-Composite Endpoint with Ordinal Outcomes (1 column)
+
+- We want to start with only one ordinal outcome and observe how adjusting for covariates performs; after we see how effective the methods are in this case, we can then expand toward multiple ordinal outcomes or multiple outcomes of mixed distributional types.
+
+
+## Setting outcome levels
+
+
+```{r}
+
+#vector of outcomes as a factor with ordered levels
+outcomes_3lvl <- factor(c("first", "second", "third"), 
+                   levels = c("first", "second", "third"), 
+                   ordered = TRUE)
+
+#Order: first < second < third, the larger the better
+
+inv_logit <- function(logit) exp(logit) / (1 + exp(logit))
+```
+
+
+
+
+## True Win Ratio
+
+
+```{r}
+
+#true probabilities trt column
+
+true_logodds1_trt <- 1 + 1 * 1 + 0.5
+true_logodds2_trt <- 0.05 + 1 * 1 + 0.5
+
+true_prob_2to3_trt <- inv_logit(true_logodds1_trt)
+
+true_prob_3_trt <- inv_logit(true_logodds2_trt)
+true_prob_1_trt <- 1 - true_prob_2to3_trt
+true_prob_2_trt <- true_prob_2to3_trt - true_prob_3_trt
+
+#c(true_prob_1_trt,true_prob_2_trt,true_prob_3_trt)
+#0.07585818 0.09922809 0.82491373
+
+#true probabilities ctrl column
+
+true_logodds1_ctrl <- 1 + 1 * 1
+true_logodds2_ctrl <- 0.05 + 1 * 1
+
+true_prob_2to3_ctrl <- inv_logit(true_logodds1_ctrl)
+
+true_prob_3_ctrl <- inv_logit(true_logodds2_ctrl)
+true_prob_1_ctrl <- 1 - true_prob_2to3_ctrl
+true_prob_2_ctrl <- true_prob_2to3_ctrl - true_prob_3_ctrl
+
+#c(true_prob_1_ctrl,true_prob_2_ctrl,true_prob_3_ctrl)
+# 0.1192029 0.1400222 0.7407749
+
+
+#trt: 0.07585818 0.09922809 0.82491373
+#ctrl: 0.1192029 0.1400222 0.7407749
+
+true_trt_wp_1col <- 0.82491373*(0.1192029+0.1400222) + 0.09922809*0.1192029
+true_ctrl_wp_1col <- 0.7407749*(0.07585818+0.09922809) + 0.1400222*0.07585818
+
+#True WR
+true_wr_1col <- true_trt_wp_1col/true_ctrl_wp_1col
+
+true_wr_1col
+#1.608213
+```
+
+
+## Relative Efficiency for the original and OW Weighted Estimator
+
+
+```{r}
+
+set.seed(1)
+
+re_count <- 15
+
+empirical_var_ori <- numeric(re_count)
+empirical_var_OW <- numeric(re_count)
+
+bias_ori <- numeric(re_count)
+bias_OW <- numeric(re_count)
+
+mse_ori <- numeric(re_count)
+mse_OW <- numeric(re_count)
+
+
+for (count_temp in 1:re_count){
+
+n_count <- count_temp*20
+
+
+trt_eff1 <- 0.5
+b1_trt <- 1
+b1_ctrl <- 1
+b01 <- 1
+b02 <- 0.05
+
+
+###########################################
+
+sim_num <- 1000
+WR_sim_1col <- numeric(sim_num)
+
+for (sim_count in 1:sim_num){
+  
+# x1
+x1_trt <- rnorm(n_count, mean = 1, sd = 0.1)
+x1_ctrl <- rnorm(n_count, mean = 1, sd = 0.1)
+
+# trt outcome column
+
+logodds1_trt <- b01 + b1_trt * x1_trt + trt_eff1
+logodds2_trt <- b02 + b1_trt * x1_trt + trt_eff1
+
+## Probability
+
+prob_2to3_trt <- inv_logit(logodds1_trt)
+prob_3_trt <- inv_logit(logodds2_trt)
+prob_1_trt <- 1 - prob_2to3_trt
+prob_2_trt <- prob_2to3_trt - prob_3_trt
+
+# ctrl outcome column
+
+logodds1_ctrl <- b01 + b1_ctrl * x1_ctrl
+logodds2_ctrl <- b02 + b1_ctrl * x1_ctrl
+
+## Probability
+
+prob_2to3_ctrl <- inv_logit(logodds1_ctrl)
+prob_3_ctrl <- inv_logit(logodds2_ctrl)
+prob_1_ctrl <- 1 - prob_2to3_ctrl
+prob_2_ctrl <- prob_2to3_ctrl - prob_3_ctrl
+  
+#generate random outcomes
+outcomes_trt <- c()
+for (i in 1:n_count) {
+  outcomes_trt[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_trt[i], prob_2_trt[i], prob_3_trt[i])
+  )
+}
+
+
+
+outcomes_ctrl <- c()
+for (i in 1:n_count) {
+  outcomes_ctrl[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_ctrl[i], prob_2_ctrl[i], prob_3_ctrl[i])
+  )
+}
+
+
+df_trt_1col <- data.frame(outcomes_trt)
+df_ctrl_1col <- data.frame(outcomes_ctrl)
+
+trtwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+ctrlwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+
+for (i in 1:nrow(df_trt_1col)){
+  for(j in 1:nrow(df_ctrl_1col)){
+
+      if (df_trt_1col[i,1] > df_ctrl_1col[j,1]){
+        trtwin_1col[i,j] = 1
+        ctrlwin_1col[i,j] = 0
+      }
+      else if (df_trt_1col[i,1] < df_ctrl_1col[j,1]){
+        trtwin_1col[i,j] = 0
+        ctrlwin_1col[i,j] = 1
+      }
+
+  }
+}
+
+
+trt_winpr_1col <- sum(as.vector(trtwin_1col), 
+                      na.rm = T)/(nrow(df_trt_1col)*nrow(df_ctrl_1col))
+ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), 
+                       na.rm = T)/(nrow(df_trt_1col)*nrow(df_ctrl_1col))
+
+WR_sim_1col[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
+
+  
+}
+
+WR_sim_noninf_1col <- WR_sim_1col[WR_sim_1col!=Inf & WR_sim_1col!=0 &
+                                    !is.na(WR_sim_1col)]
+
+
+empirical_var_ori[count_temp] <- var(WR_sim_noninf_1col)
+bias_ori[count_temp] <- mean(WR_sim_noninf_1col) - true_wr_1col
+mse_ori[count_temp] <- bias_ori[count_temp]^2 + empirical_var_ori[count_temp]
+
+
+
+###########################################
+
+WR_sim_1col_OW <- numeric(sim_num)
+
+for (sim_count in 1:sim_num){
+
+# x1
+x1_trt <- rnorm(n_count, mean = 1, sd = 0.1)
+x1_ctrl <- rnorm(n_count, mean = 1, sd = 0.1)
+
+# trt outcome column
+
+logodds1_trt <- b01 + b1_trt * x1_trt + trt_eff1
+logodds2_trt <- b02 + b1_trt * x1_trt + trt_eff1
+
+## Probability
+
+prob_2to3_trt <- inv_logit(logodds1_trt)
+prob_3_trt <- inv_logit(logodds2_trt)
+prob_1_trt <- 1 - prob_2to3_trt
+prob_2_trt <- prob_2to3_trt - prob_3_trt
+
+# ctrl outcome column
+
+logodds1_ctrl <- b01 + b1_ctrl * x1_ctrl
+logodds2_ctrl <- b02 + b1_ctrl * x1_ctrl
+
+## Probability
+
+prob_2to3_ctrl <- inv_logit(logodds1_ctrl)
+prob_3_ctrl <- inv_logit(logodds2_ctrl)
+prob_1_ctrl <- 1 - prob_2to3_ctrl
+prob_2_ctrl <- prob_2to3_ctrl - prob_3_ctrl
+
+#generate random outcomes
+outcomes_trt <- c()
+for (i in 1:n_count) {
+  outcomes_trt[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_trt[i], prob_2_trt[i], prob_3_trt[i])
+  )
+}
+
+
+
+outcomes_ctrl <- c()
+for (i in 1:n_count) {
+  outcomes_ctrl[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_ctrl[i], prob_2_ctrl[i], prob_3_ctrl[i])
+  )
+}
+
+df_trt_1col <- data.frame(outcomes_trt)
+df_ctrl_1col <- data.frame(outcomes_ctrl)
+
+colnames(df_trt_1col) <- "outcomes_comb"
+colnames(df_ctrl_1col) <- "outcomes_comb"
+
+df_comb_1col <- rbind(df_trt_1col, df_ctrl_1col)
+df_comb_1col$treatment <- c(rep(1,n_count), rep(0,n_count))
+df_comb_1col$x_covariate <- c(x1_trt, x1_ctrl)
+
+###PS
+PropScore <- glm(treatment~x_covariate, data = df_comb_1col, family=binomial)
+pi_func <- fitted(PropScore)
+
+trtwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+ctrlwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+
+for (i in 1:n_count){
+  for(j in (n_count+1):(2*n_count)){
+
+      if (df_comb_1col[i,1] > df_comb_1col[j,1]){
+        trtwin_1col[i,j-n_count] = ((1-pi_func[i])*pi_func[j])/2
+        ctrlwin_1col[i,j-n_count] = 0
+      }
+      else if (df_comb_1col[i,1] < df_comb_1col[j,1]){
+        trtwin_1col[i,j-n_count] = 0
+        ctrlwin_1col[i,j-n_count] = ((1-pi_func[i])*pi_func[j])/2
+      }
+
+  }
+}
+
+
+trt_winpr_1col <- sum(as.vector(trtwin_1col), na.rm = T)/(choose(2*n_count,2))
+ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), na.rm = T)/(choose(2*n_count,2))
+
+WR_sim_1col_OW[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
+
+  
+}
+
+WR_sim_noninf_1col_OW <- WR_sim_1col_OW[WR_sim_1col_OW!=Inf &
+                                        WR_sim_1col_OW!=0 &
+                                        !is.na(WR_sim_1col_OW)]
+
+
+empirical_var_OW[count_temp] <- var(WR_sim_noninf_1col_OW)
+bias_OW[count_temp] <- mean(WR_sim_noninf_1col_OW) - true_wr_1col
+mse_OW[count_temp] <- bias_OW[count_temp]^2 + empirical_var_OW[count_temp]
+
+}
+
+
+#empirical_var_ori
+#empirical_var_OW
+
+#bias_ori
+#bias_OW
+
+
+relative_eff <- empirical_var_ori/empirical_var_OW
+
+
+
+relative_eff
+```
+
+
+
+## Relative Efficiency Visulization
+
+
+```{r, warning=FALSE}
+library(ggplot2)
+
+var_ori_df <- data.frame(empirical_var_ori)
+var_OW_df <- data.frame(empirical_var_OW)
+
+colnames(var_ori_df) <- "variance"
+colnames(var_OW_df) <- "variance"
+
+sim_df <- rbind(var_ori_df, var_OW_df)
+sim_df$mse <- c(mse_ori, mse_OW)
+sim_df$bias <- c(bias_ori, bias_OW)
+sim_df$estimator <- c(rep("original",re_count), rep("OW",re_count))
+sim_df$estimator <- as.factor(sim_df$estimator)
+sim_df$samplesize <- c(c(1:re_count)*20, c(1:re_count)*20)
+
+var_plot <- ggplot(sim_df, aes(x=samplesize, y = variance,
+                                  color = estimator)) + 
+  geom_point() + 
+  geom_line(aes(group = estimator)) + 
+  scale_color_manual(values = c("original" = "black", "OW" = "red"))+
+  ggtitle("Variance comparison from Simulation") +
+  xlab("Sample Size") + ylab("Variance") +
+  scale_x_continuous(breaks=seq(0,20*re_count,10)) + 
+  theme(
+    plot.title = element_text(color="red", size=12, face="bold.italic"),
+    axis.title.x = element_text(size=12),
+    axis.text.x = element_text(size=6),
+    axis.title.y = element_text(size=12),
+    legend.text = element_text(size=12)
+    )
+
+var_plot
+
+
+mse_plot <- ggplot(sim_df, aes(x=samplesize, y = mse,
+                                  color = estimator)) + 
+  geom_point() + 
+  geom_line(aes(group = estimator)) + 
+  scale_color_manual(values = c("original" = "black", "OW" = "red"))+
+  ggtitle("MSE comparison from Simulation") +
+  xlab("Sample Size") + ylab("MSE") +
+  scale_x_continuous(breaks=seq(0,20*re_count,10)) + 
+  theme(
+    plot.title = element_text(color="red", size=12, face="bold.italic"),
+    axis.title.x = element_text(size=12),
+    axis.text.x = element_text(size=6),
+    axis.title.y = element_text(size=12),
+    legend.text = element_text(size=12)
+    )
+
+
+
+mse_plot
+
+
+
+re_df <- data.frame(relative_eff)
+re_df$samplesize <- c(1:re_count)*20
+
+re_plot <- ggplot(re_df, aes(x=samplesize, y = relative_eff)) + 
+  geom_point(color = "black") + 
+  geom_line(color = "black") +
+  geom_hline(yintercept=1, linetype="dashed", color = "red") +
+  ggtitle("Relative Efficiency from Simulation, OW vs Original") +
+  xlab("Sample Size") + ylab("Relative Efficiency") +
+  scale_x_continuous(breaks=seq(0,20*re_count,10)) +
+  theme(
+    plot.title = element_text(color="red", size=12, face="bold.italic"),
+    axis.title.x = element_text(size=12),
+    axis.text.x = element_text(size=8),
+    axis.title.y = element_text(size=12),
+    legend.text = element_text(size=12)
+    )
+
+re_plot
+
+```
+
+
+
+
+
+## Run Time
+
+```{r}
+end_time <- Sys.time()
+
+run_time <- end_time - start_time
+run_time
+```
+
+
+
+
+
+
