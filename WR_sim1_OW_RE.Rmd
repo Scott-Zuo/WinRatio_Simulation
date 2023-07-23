@@ -93,6 +93,10 @@ true_wr_1col
 ```
 
 
+
+
+
+
 ## Relative Efficiency for the original and OW Weighted Estimator
 
 
@@ -111,6 +115,14 @@ bias_OW <- numeric(re_count)
 mse_ori <- numeric(re_count)
 mse_OW <- numeric(re_count)
 
+WR_sim_val0_ori <- numeric(re_count)
+WR_sim_valInf_ori <- numeric(re_count)
+WR_sim_valNA_ori <- numeric(re_count)
+
+WR_sim_val0_OW <- numeric(re_count)
+WR_sim_valInf_OW <- numeric(re_count)
+WR_sim_valNA_OW <- numeric(re_count)
+
 
 for (count_temp in 1:re_count){
 
@@ -128,6 +140,7 @@ b02 <- 0.05
 
 sim_num <- 1000
 WR_sim_1col <- numeric(sim_num)
+WR_sim_1col_OW <- numeric(sim_num)
 
 for (sim_count in 1:sim_num){
   
@@ -211,80 +224,18 @@ ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col),
 WR_sim_1col[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
 
   
-}
-
-WR_sim_noninf_1col <- WR_sim_1col[WR_sim_1col!=Inf & WR_sim_1col!=0 &
-                                    !is.na(WR_sim_1col)]
-
-
-empirical_var_ori[count_temp] <- var(WR_sim_noninf_1col)
-bias_ori[count_temp] <- mean(WR_sim_noninf_1col) - true_wr_1col
-mse_ori[count_temp] <- bias_ori[count_temp]^2 + empirical_var_ori[count_temp]
 
 
 
-###########################################
+###############OW######################
 
-WR_sim_1col_OW <- numeric(sim_num)
+df_trt_1col_OW <- data.frame(outcomes_trt)
+df_ctrl_1col_OW <- data.frame(outcomes_ctrl)
 
-for (sim_count in 1:sim_num){
+colnames(df_trt_1col_OW) <- "outcomes_comb"
+colnames(df_ctrl_1col_OW) <- "outcomes_comb"
 
-# x1
-x1_trt <- rnorm(n_count, mean = 1, sd = 0.1)
-x1_ctrl <- rnorm(n_count, mean = 1, sd = 0.1)
-
-# trt outcome column
-
-logodds1_trt <- b01 + b1_trt * x1_trt + trt_eff1
-logodds2_trt <- b02 + b1_trt * x1_trt + trt_eff1
-
-## Probability
-
-prob_2to3_trt <- inv_logit(logodds1_trt)
-prob_3_trt <- inv_logit(logodds2_trt)
-prob_1_trt <- 1 - prob_2to3_trt
-prob_2_trt <- prob_2to3_trt - prob_3_trt
-
-# ctrl outcome column
-
-logodds1_ctrl <- b01 + b1_ctrl * x1_ctrl
-logodds2_ctrl <- b02 + b1_ctrl * x1_ctrl
-
-## Probability
-
-prob_2to3_ctrl <- inv_logit(logodds1_ctrl)
-prob_3_ctrl <- inv_logit(logodds2_ctrl)
-prob_1_ctrl <- 1 - prob_2to3_ctrl
-prob_2_ctrl <- prob_2to3_ctrl - prob_3_ctrl
-
-#generate random outcomes
-outcomes_trt <- c()
-for (i in 1:n_count) {
-  outcomes_trt[i] <- sample(
-    outcomes_3lvl, 
-    size = 1,
-    prob = c(prob_1_trt[i], prob_2_trt[i], prob_3_trt[i])
-  )
-}
-
-
-
-outcomes_ctrl <- c()
-for (i in 1:n_count) {
-  outcomes_ctrl[i] <- sample(
-    outcomes_3lvl, 
-    size = 1,
-    prob = c(prob_1_ctrl[i], prob_2_ctrl[i], prob_3_ctrl[i])
-  )
-}
-
-df_trt_1col <- data.frame(outcomes_trt)
-df_ctrl_1col <- data.frame(outcomes_ctrl)
-
-colnames(df_trt_1col) <- "outcomes_comb"
-colnames(df_ctrl_1col) <- "outcomes_comb"
-
-df_comb_1col <- rbind(df_trt_1col, df_ctrl_1col)
+df_comb_1col <- rbind(df_trt_1col_OW, df_ctrl_1col_OW)
 df_comb_1col$treatment <- c(rep(1,n_count), rep(0,n_count))
 df_comb_1col$x_covariate <- c(x1_trt, x1_ctrl)
 
@@ -292,58 +243,70 @@ df_comb_1col$x_covariate <- c(x1_trt, x1_ctrl)
 PropScore <- glm(treatment~x_covariate, data = df_comb_1col, family=binomial)
 pi_func <- fitted(PropScore)
 
-trtwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
-ctrlwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+trtwin_1col_OW <- matrix(NA, nrow = nrow(df_trt_1col_OW), ncol = nrow(df_ctrl_1col_OW))
+ctrlwin_1col_OW <- matrix(NA, nrow = nrow(df_trt_1col_OW), ncol = nrow(df_ctrl_1col_OW))
 
 for (i in 1:n_count){
   for(j in (n_count+1):(2*n_count)){
 
       if (df_comb_1col[i,1] > df_comb_1col[j,1]){
-        trtwin_1col[i,j-n_count] = ((1-pi_func[i])*pi_func[j])/2
-        ctrlwin_1col[i,j-n_count] = 0
+        trtwin_1col_OW[i,j-n_count] = ((1-pi_func[i])*pi_func[j])/2
+        ctrlwin_1col_OW[i,j-n_count] = 0
       }
       else if (df_comb_1col[i,1] < df_comb_1col[j,1]){
-        trtwin_1col[i,j-n_count] = 0
-        ctrlwin_1col[i,j-n_count] = ((1-pi_func[i])*pi_func[j])/2
+        trtwin_1col_OW[i,j-n_count] = 0
+        ctrlwin_1col_OW[i,j-n_count] = ((1-pi_func[i])*pi_func[j])/2
       }
 
   }
 }
 
 
-trt_winpr_1col <- sum(as.vector(trtwin_1col), na.rm = T)/(choose(2*n_count,2))
-ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), na.rm = T)/(choose(2*n_count,2))
+trt_winpr_1col_OW <- sum(as.vector(trtwin_1col_OW), na.rm = T)/(choose(2*n_count,2))
+ctrl_winpr_1col_OW <- sum(as.vector(ctrlwin_1col_OW), na.rm = T)/(choose(2*n_count,2))
 
-WR_sim_1col_OW[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
+WR_sim_1col_OW[sim_count] <- trt_winpr_1col_OW/ctrl_winpr_1col_OW
 
-  
+
 }
+
+
+
+WR_sim_noninf_1col <- WR_sim_1col[WR_sim_1col!=Inf &
+                                  WR_sim_1col!=0 &
+                                  !is.na(WR_sim_1col)]
+
+empirical_var_ori[count_temp] <- var(WR_sim_noninf_1col)
+bias_ori[count_temp] <- mean(WR_sim_noninf_1col) - true_wr_1col
+mse_ori[count_temp] <- bias_ori[count_temp]^2 + empirical_var_ori[count_temp]
+
+
+WR_sim_val0_ori[count_temp] <- length(WR_sim_1col[WR_sim_1col = 0])
+WR_sim_valInf_ori[count_temp] <- length(WR_sim_1col[WR_sim_1col = Inf])
+WR_sim_valNA_ori[count_temp] <- length(WR_sim_1col[is.na(WR_sim_1col)])
+
+###########################################
 
 WR_sim_noninf_1col_OW <- WR_sim_1col_OW[WR_sim_1col_OW!=Inf &
                                         WR_sim_1col_OW!=0 &
                                         !is.na(WR_sim_1col_OW)]
 
-
 empirical_var_OW[count_temp] <- var(WR_sim_noninf_1col_OW)
 bias_OW[count_temp] <- mean(WR_sim_noninf_1col_OW) - true_wr_1col
 mse_OW[count_temp] <- bias_OW[count_temp]^2 + empirical_var_OW[count_temp]
 
+
+WR_sim_val0_OW[count_temp] <- length(WR_sim_1col_OW[WR_sim_1col_OW = 0])
+WR_sim_valInf_OW[count_temp] <- length(WR_sim_1col_OW[WR_sim_1col_OW = Inf])
+WR_sim_valNA_OW[count_temp] <- length(WR_sim_1col_OW[is.na(WR_sim_1col_OW)])
+
 }
-
-
-#empirical_var_ori
-#empirical_var_OW
-
-#bias_ori
-#bias_OW
-
 
 relative_eff <- empirical_var_ori/empirical_var_OW
 
-
-
 relative_eff
 ```
+
 
 
 
@@ -429,10 +392,6 @@ re_plot
 
 ```
 
-
-
-
-
 ## Run Time
 
 ```{r}
@@ -441,6 +400,17 @@ end_time <- Sys.time()
 run_time <- end_time - start_time
 run_time
 ```
+
+
+
+
+
+
+
+
+
+
+
 
 
 
