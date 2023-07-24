@@ -1,0 +1,499 @@
+---
+title: "Win Ratio Adjusted for Covariates using Doubly Robust Estimator"
+author: "Scott Zuo"
+output: 
+    html_document:
+      toc: TRUE
+      toc_float: true
+      theme: spacelab
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+# Doubly Robust Estimator
+
+```{r}
+library(MASS)
+library(nnet)
+library(VGAM)
+```
+
+
+## Non-Composite Endpoint with Ordinal Outcomes (1 column)
+
+- We want to start with only one ordinal outcome and observe how adjusting for covariates performs; after we see how effective the methods are in this case, we can then expand toward multiple ordinal outcomes or multiple outcomes of mixed distributional types.
+
+
+### Setting outcome levels
+
+
+```{r}
+#vector of outcomes as a factor with ordered levels
+outcomes_3lvl <- factor(c("first", "second", "third"), 
+                   levels = c("first", "second", "third"), 
+                   ordered = TRUE)
+
+#Order: first < second < third, the larger the better
+
+
+#number of observations in each group
+
+n_count <- 100
+
+inv_logit <- function(logit) exp(logit) / (1 + exp(logit))
+```
+
+
+
+### Generating data from covariates
+
+- $$logodds_1 = ln(\frac{\pi_2+\pi_3}{\pi_1})$$
+- $$logodds_2 = ln(\frac{\pi_3}{\pi_1+\pi_2})$$
+
+
+
+
+### True Win Ratio
+
+
+```{r}
+
+#true probabilities trt column
+
+true_logodds1_trt <- 1 + 1 * 1 + 0.5
+true_logodds2_trt <- 0.05 + 1 * 1 + 0.5
+
+true_prob_2to3_trt <- inv_logit(true_logodds1_trt)
+
+true_prob_3_trt <- inv_logit(true_logodds2_trt)
+true_prob_1_trt <- 1 - true_prob_2to3_trt
+true_prob_2_trt <- true_prob_2to3_trt - true_prob_3_trt
+
+#c(true_prob_1_trt,true_prob_2_trt,true_prob_3_trt)
+#0.07585818 0.09922809 0.82491373
+
+#true probabilities ctrl column
+
+true_logodds1_ctrl <- 1 + 1 * 1
+true_logodds2_ctrl <- 0.05 + 1 * 1
+
+true_prob_2to3_ctrl <- inv_logit(true_logodds1_ctrl)
+
+true_prob_3_ctrl <- inv_logit(true_logodds2_ctrl)
+true_prob_1_ctrl <- 1 - true_prob_2to3_ctrl
+true_prob_2_ctrl <- true_prob_2to3_ctrl - true_prob_3_ctrl
+
+#c(true_prob_1_ctrl,true_prob_2_ctrl,true_prob_3_ctrl)
+# 0.1192029 0.1400222 0.7407749
+
+
+#trt: 0.07585818 0.09922809 0.82491373
+#ctrl: 0.1192029 0.1400222 0.7407749
+
+true_trt_wp_1col <- 0.82491373*(0.1192029+0.1400222) + 0.09922809*0.1192029
+true_ctrl_wp_1col <- 0.7407749*(0.09922809+0.07585818) + 0.1400222*0.07585818
+
+#True WR
+true_wr_1col <- true_trt_wp_1col/true_ctrl_wp_1col
+
+true_wr_1col
+#1.608213
+```
+
+
+
+### Simulation without using DR Estimator
+
+
+```{r}
+
+set.seed(1)
+
+trt_eff1 <- 0.5
+b1_trt <- 1
+b1_ctrl <- 1
+b01 <- 1
+b02 <- 0.05
+
+
+
+
+sim_num <- 1000
+WR_sim_1col <- numeric(sim_num)
+
+for (sim_count in 1:sim_num){
+
+x1_trt <- rnorm(n_count, mean = 1, sd = 0.1)
+x1_ctrl <- rnorm(n_count, mean = 1, sd = 0.1)
+
+# trt outcome column
+
+logodds1_trt <- b01 + b1_trt * x1_trt + trt_eff1
+logodds2_trt <- b02 + b1_trt * x1_trt + trt_eff1
+
+## Probability
+
+prob_2to3_trt <- inv_logit(logodds1_trt)
+prob_3_trt <- inv_logit(logodds2_trt)
+
+prob_1_trt <- 1 - prob_2to3_trt
+prob_2_trt <- prob_2to3_trt - prob_3_trt
+
+# ctrl outcome column
+
+logodds1_ctrl <- b01 + b1_ctrl * x1_ctrl
+logodds2_ctrl <- b02 + b1_ctrl * x1_ctrl
+
+## Probability
+
+prob_2to3_ctrl <- inv_logit(logodds1_ctrl)
+prob_3_ctrl <- inv_logit(logodds2_ctrl)
+
+prob_1_ctrl <- 1 - prob_2to3_ctrl
+prob_2_ctrl <- prob_2to3_ctrl - prob_3_ctrl
+
+
+#generate random outcomes
+outcomes_trt <- c()
+for (i in 1:n_count) {
+  outcomes_trt[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_trt[i], prob_2_trt[i], prob_3_trt[i])
+  )
+}
+
+outcomes_ctrl <- c()
+for (i in 1:n_count) {
+  outcomes_ctrl[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_ctrl[i], prob_2_ctrl[i], prob_3_ctrl[i])
+  )
+}
+
+
+df_trt_1col <- data.frame(outcomes_trt)
+df_ctrl_1col <- data.frame(outcomes_ctrl)
+
+trtwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+ctrlwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+
+for (i in 1:nrow(df_trt_1col)){
+  for(j in 1:nrow(df_ctrl_1col)){
+
+      if (df_trt_1col[i,1] > df_ctrl_1col[j,1]){
+        trtwin_1col[i,j] = 1
+        ctrlwin_1col[i,j] = 0
+      }
+      else if (df_trt_1col[i,1] < df_ctrl_1col[j,1]){
+        trtwin_1col[i,j] = 0
+        ctrlwin_1col[i,j] = 1
+      }
+
+  }
+}
+
+
+trt_winpr_1col <- sum(as.vector(trtwin_1col), na.rm = T)/(nrow(df_trt_1col)*nrow(df_ctrl_1col))
+ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), na.rm = T)/(nrow(df_trt_1col)*nrow(df_ctrl_1col))
+
+WR_sim_1col[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
+
+  
+}
+
+WR_sim_noninf_1col <- WR_sim_1col[WR_sim_1col!=Inf & WR_sim_1col!=0 &
+                                    !is.na(WR_sim_1col)]
+
+summary(WR_sim_noninf_1col)
+var(WR_sim_noninf_1col)
+
+
+```
+
+
+
+
+### Simulation using DR Estimator
+
+```{r, warning=FALSE}
+
+set.seed(1)
+
+trt_eff1 <- 0.5
+b1_trt <- 1
+b1_ctrl <- 1
+b01 <- 1
+b02 <- 0.05
+
+sim_num <- 1000
+WR_sim_1col_DR <- numeric(sim_num)
+
+for (sim_count in 1:sim_num){
+
+
+x1_trt <- rnorm(n_count, mean = 1, sd = 0.1)
+x1_ctrl <- rnorm(n_count, mean = 1, sd = 0.1)
+
+# trt outcome column
+
+logodds1_trt <- b01 + b1_trt * x1_trt + trt_eff1
+logodds2_trt <- b02 + b1_trt * x1_trt + trt_eff1
+
+## Probability
+
+prob_2to3_trt <- inv_logit(logodds1_trt)
+prob_3_trt <- inv_logit(logodds2_trt)
+
+prob_1_trt <- 1 - prob_2to3_trt
+prob_2_trt <- prob_2to3_trt - prob_3_trt
+
+# ctrl outcome column
+
+logodds1_ctrl <- b01 + b1_ctrl * x1_ctrl
+logodds2_ctrl <- b02 + b1_ctrl * x1_ctrl
+
+## Probability
+
+prob_2to3_ctrl <- inv_logit(logodds1_ctrl)
+prob_3_ctrl <- inv_logit(logodds2_ctrl)
+
+prob_1_ctrl <- 1 - prob_2to3_ctrl
+prob_2_ctrl <- prob_2to3_ctrl - prob_3_ctrl
+  
+#generate random outcomes
+outcomes_trt <- c()
+for (i in 1:n_count) {
+  outcomes_trt[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_trt[i], prob_2_trt[i], prob_3_trt[i])
+  )
+}
+
+
+
+outcomes_ctrl <- c()
+for (i in 1:n_count) {
+  outcomes_ctrl[i] <- sample(
+    outcomes_3lvl, 
+    size = 1,
+    prob = c(prob_1_ctrl[i], prob_2_ctrl[i], prob_3_ctrl[i])
+  )
+}
+
+
+df_trt_1col <- data.frame(outcomes_trt)
+df_ctrl_1col <- data.frame(outcomes_ctrl)
+
+colnames(df_trt_1col) <- "outcomes_comb"
+colnames(df_ctrl_1col) <- "outcomes_comb"
+
+df_comb_1col <- rbind(df_trt_1col, df_ctrl_1col)
+df_comb_1col$treatment <- c(rep(1,n_count), rep(0,n_count))
+df_comb_1col$x_covariate <- c(x1_trt, x1_ctrl)
+
+
+###DR mu-function
+
+if(!(1 %in% df_comb_1col[df_comb_1col$treatment==1,]$outcomes_comb) &
+   !(2 %in% df_comb_1col[df_comb_1col$treatment==1,]$outcomes_comb) &
+   !(1 %in% df_comb_1col[df_comb_1col$treatment==0,]$outcomes_comb) &
+   !(2 %in% df_comb_1col[df_comb_1col$treatment==0,]$outcomes_comb)){
+  cond_prob_trt <-data.frame(rep(1,n_count))
+  colnames(cond_prob_trt) <- "3"
+  cond_prob_ctrl <-data.frame(rep(1,n_count))
+  colnames(cond_prob_ctrl) <- "3"
+}
+else if(!(1 %in% df_comb_1col[df_comb_1col$treatment==1,]$outcomes_comb) &
+        !(2 %in% df_comb_1col[df_comb_1col$treatment==1,]$outcomes_comb)){
+  cond_prob_trt <-data.frame(rep(1,n_count))
+  colnames(cond_prob_trt) <- "3"
+  dr_ctrl <- vglm(factor(outcomes_comb) ~ x_covariate, data = df_comb_1col[df_comb_1col$treatment==0,],
+               family = multinomial)
+  cond_prob_ctrl <- predictvglm(dr_ctrl, type = "response")
+}
+else if(!(1 %in% df_comb_1col[df_comb_1col$treatment==0,]$outcomes_comb) &
+        !(2 %in% df_comb_1col[df_comb_1col$treatment==0,]$outcomes_comb)){
+  dr_trt <- vglm(factor(outcomes_comb) ~ x_covariate, data = df_comb_1col[df_comb_1col$treatment==1,],
+               family = multinomial)
+  cond_prob_trt <- predictvglm(dr_trt, type = "response")
+  cond_prob_ctrl <-data.frame(rep(1,n_count))
+  colnames(cond_prob_ctrl) <- "3"
+}
+else{
+dr_trt <- vglm(factor(outcomes_comb) ~ x_covariate, data = df_comb_1col[df_comb_1col$treatment==1,],
+               family = multinomial)
+dr_ctrl <- vglm(factor(outcomes_comb) ~ x_covariate, data = df_comb_1col[df_comb_1col$treatment==0,],
+               family = multinomial)
+
+cond_prob_trt <- predictvglm(dr_trt, type = "response")
+cond_prob_ctrl <- predictvglm(dr_ctrl, type = "response")
+}
+
+prob1_0 <-data.frame(rep(0,n_count))
+colnames(prob1_0) <- "1"
+prob2_0 <-data.frame(rep(0,n_count))
+colnames(prob2_0) <- "2"
+
+
+if(!"1" %in% colnames(cond_prob_trt)){
+  cond_prob_trt <- cbind(prob1_0, cond_prob_trt)
+}
+
+if(!"1" %in% colnames(cond_prob_ctrl)){
+  cond_prob_ctrl <- cbind(prob1_0, cond_prob_ctrl)
+}
+if(!"2" %in% colnames(cond_prob_trt)){
+  col1 <- data.frame(cond_prob_trt[,1])
+  colnames(col1) <- "1"
+  col3 <- data.frame(cond_prob_trt[,2])
+  colnames(col3) <- "3"
+  cond_prob_trt <- cbind(col1, prob2_0, col3)
+}
+
+if(!"2" %in% colnames(cond_prob_ctrl)){
+  col1 <- data.frame(cond_prob_ctrl[,1])
+  colnames(col1) <- "1"
+  col3 <- data.frame(cond_prob_ctrl[,2])
+  colnames(col3) <- "3"
+  cond_prob_ctrl <- cbind(col1, prob2_0, col3)
+}
+
+
+
+
+###PS
+PropScore <- glm(treatment~x_covariate, data = df_comb_1col, family=binomial)
+pi_func <- fitted(PropScore)
+
+trtwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+ctrlwin_1col <- matrix(NA, nrow = nrow(df_trt_1col), ncol = nrow(df_ctrl_1col))
+
+for (i in 1:n_count){
+  for(j in (n_count+1):(2*n_count)){
+
+      if (df_comb_1col[i,1] > df_comb_1col[j,1]){
+        trtwin_1col[i,j-n_count] = (0.5)*((1/(pi_func[i]*(1-pi_func[j])))-
+          ((1/(pi_func[i]*(1-pi_func[j])))-1)*(cond_prob_trt[i,2]*cond_prob_ctrl[j-n_count,1]+
+                                               cond_prob_trt[i,3]*cond_prob_ctrl[j-n_count,1]+
+                                               cond_prob_trt[i,3]*cond_prob_ctrl[j-n_count,2]))
+        ctrlwin_1col[i,j-n_count] = (0.5)*(0 -
+          ((1/(pi_func[i]*(1-pi_func[j])))-1)*(cond_prob_trt[i,1]*cond_prob_ctrl[j-n_count,2]+
+                                               cond_prob_trt[i,1]*cond_prob_ctrl[j-n_count,3]+
+                                               cond_prob_trt[i,2]*cond_prob_ctrl[j-n_count,3]))
+      }
+      else if (df_comb_1col[i,1] < df_comb_1col[j,1]){
+        trtwin_1col[i,j-n_count] = (0.5)*(0 -
+          ((1/(pi_func[i]*(1-pi_func[j])))-1)*(cond_prob_trt[i,2]*cond_prob_ctrl[j-n_count,1]+
+                                               cond_prob_trt[i,3]*cond_prob_ctrl[j-n_count,1]+
+                                               cond_prob_trt[i,3]*cond_prob_ctrl[j-n_count,2]))
+        ctrlwin_1col[i,j-n_count] = (0.5)*((1/(pi_func[i]*(1-pi_func[j])))-
+          ((1/(pi_func[i]*(1-pi_func[j])))-1)*(cond_prob_trt[i,1]*cond_prob_ctrl[j-n_count,2]+
+                                               cond_prob_trt[i,1]*cond_prob_ctrl[j-n_count,3]+
+                                               cond_prob_trt[i,2]*cond_prob_ctrl[j-n_count,3]))
+      }
+
+  }
+}
+
+
+trt_winpr_1col <- sum(as.vector(trtwin_1col), na.rm = T)/(choose(2*n_count,2))
+ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col), na.rm = T)/(choose(2*n_count,2))
+
+WR_sim_1col_DR[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
+
+
+}
+
+WR_sim_noninf_1col_DR <- WR_sim_1col_DR[WR_sim_1col_DR!=Inf &
+                                        WR_sim_1col_DR!=0 &
+                                        !is.na(WR_sim_1col_DR)]
+
+summary(WR_sim_noninf_1col_DR)
+var(WR_sim_noninf_1col_DR)
+
+
+##Comments and Question
+#h(yi, yj) = 1 if yi > yj
+```
+
+- The way we set up the code:
+  - will only include the non-zero values among all comparisons
+  - $W_i = 1$ and $W_j = 0$ should be guaranteed
+
+
+
+### Simulation results display and comparison (one ordinal outcome)
+
+
+```{r, warning=FALSE}
+library(ggplot2)
+
+WR_sim_df_1col <- data.frame(WR_sim_noninf_1col)
+WR_sim_df_1col_DR <- data.frame(WR_sim_noninf_1col_DR)
+
+
+line.data_1col <- data.frame(xintercept = c(mean(WR_sim_noninf_1col), median(WR_sim_noninf_1col), true_wr_1col), 
+                        Lines = c("Mean", "Median", "True WinRatio"),
+  color = c("black", "red", "gold"), stringsAsFactors = FALSE)
+
+line.data_1col_IPS <- data.frame(xintercept = c(mean(WR_sim_noninf_1col_DR), median(WR_sim_noninf_1col_DR), 
+                                                true_wr_1col), 
+                        Lines = c("Mean", "Median", "True WinRatio"),
+  color = c("black", "red", "gold"), stringsAsFactors = FALSE)
+
+
+WR_hist1_1col <- ggplot(WR_sim_df_1col, aes(x=WR_sim_noninf_1col)) + 
+  geom_histogram(color="grey", fill="white", binwidth = 1, aes(y=after_stat(density))) +
+  xlim(0, 10) +
+  geom_density(alpha=0.2, color = "grey", fill="salmon") +
+  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col, linewidth = 0.6) +
+  scale_colour_manual(values = line.data_1col$color) +
+  ggtitle("Simulation without adjusting for covariates") +
+  xlab("Win Ratio value") +
+  theme(
+    plot.title = element_text(color="red", size=12, face="bold.italic"),
+    axis.title.x = element_text(size=12),
+    axis.title.y = element_text(size=12),
+    legend.text = element_text(size=12)
+    )
+
+WR_hist1_1col_DR <- ggplot(WR_sim_df_1col_DR, aes(x=WR_sim_noninf_1col_DR)) + 
+  geom_histogram(color="grey", fill="white", binwidth = 1, aes(y=after_stat(density))) +
+  xlim(0, 10) +
+  geom_density(alpha=0.2, color = "grey", fill="salmon") +
+  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col_IPS, linewidth = 0.6) +
+  scale_colour_manual(values = line.data_1col_IPS$color) +
+  ggtitle("Simulation using Doubly Robust Estimator") +
+  xlab("Win Ratio value") +
+  theme(
+    plot.title = element_text(color="red", size=12, face="bold.italic"),
+    axis.title.x = element_text(size=12),
+    axis.title.y = element_text(size=12),
+    legend.text = element_text(size=12)
+    )
+
+WR_hist1_1col
+WR_hist1_1col_DR
+```
+
+
+
+
+
+## Composite Endpoint with Ordinal Outcomes (more than 1 column)
+
+- In the setting of composite endpoint, we will analyze the Win Ratio with two or more columns of ordinal outcomes in each group
+
+
+
+
+
+
+
