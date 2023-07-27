@@ -443,7 +443,7 @@ line.data_1col <- data.frame(xintercept = c(mean(WR_sim_noninf_1col), median(WR_
                         Lines = c("Mean", "Median", "True WinRatio"),
   color = c("black", "red", "gold"), stringsAsFactors = FALSE)
 
-line.data_1col_IPS <- data.frame(xintercept = c(mean(WR_sim_noninf_1col_DR), median(WR_sim_noninf_1col_DR), 
+line.data_1col_DR <- data.frame(xintercept = c(mean(WR_sim_noninf_1col_DR), median(WR_sim_noninf_1col_DR), 
                                                 true_wr_1col), 
                         Lines = c("Mean", "Median", "True WinRatio"),
   color = c("black", "red", "gold"), stringsAsFactors = FALSE)
@@ -468,8 +468,8 @@ WR_hist1_1col_DR <- ggplot(WR_sim_df_1col_DR, aes(x=WR_sim_noninf_1col_DR)) +
   geom_histogram(color="grey", fill="white", binwidth = 1, aes(y=after_stat(density))) +
   xlim(0, 10) +
   geom_density(alpha=0.2, color = "grey", fill="salmon") +
-  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col_IPS, linewidth = 0.6) +
-  scale_colour_manual(values = line.data_1col_IPS$color) +
+  geom_vline(aes(xintercept = xintercept, color = Lines), line.data_1col_DR, linewidth = 0.6) +
+  scale_colour_manual(values = line.data_1col_DR$color) +
   ggtitle("Simulation using Doubly Robust Estimator") +
   xlab("Win Ratio value") +
   theme(
