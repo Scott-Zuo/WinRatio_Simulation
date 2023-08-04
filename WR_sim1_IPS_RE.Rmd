@@ -145,8 +145,8 @@ WR_sim_1col_IPS <- numeric(sim_num)
 for (sim_count in 1:sim_num){
   
 # x1
-x1_trt <- rnorm(n_count, mean = 1, sd = 0.1)
-x1_ctrl <- rnorm(n_count, mean = 1, sd = 0.1)
+x1_trt <- rnorm(n_count, mean = 1, sd = 0.3)
+x1_ctrl <- rnorm(n_count, mean = 1, sd = 0.3)
 
 # trt outcome column
 
@@ -304,7 +304,11 @@ WR_sim_valNA_IPS[count_temp] <- length(WR_sim_1col_IPS[is.na(WR_sim_1col_IPS)])
 
 relative_eff <- empirical_var_ori/empirical_var_IPS
 
-relative_eff
+save(re_count, relative_eff,
+     empirical_var_ori, bias_ori, mse_ori,
+     empirical_var_IPS, bias_IPS, mse_IPS,
+     WR_sim_val0_ori, WR_sim_valInf_ori, WR_sim_valNA_ori,
+     WR_sim_val0_IPS, WR_sim_valInf_IPS, WR_sim_valNA_IPS, file = "IPS_RE_Output.RData")
 ```
 
 
@@ -402,10 +406,6 @@ end_time <- Sys.time()
 run_time <- end_time - start_time
 run_time
 ```
-
-
-
-
 
 
 

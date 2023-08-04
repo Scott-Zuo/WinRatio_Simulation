@@ -1,5 +1,5 @@
 ---
-title: "Win Ratio OW Relative Efficiency"
+title: "Win Ratio Doubly Robust Relative Efficiency"
 author: "Scott Zuo"
 output: 
     html_document:
@@ -14,9 +14,12 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 
-# Overlap Weighting Estimator
+# Doubly Robust Estimator
 
 ```{r}
+library(MASS)
+library(nnet)
+library(VGAM)
 start_time <- Sys.time()
 ```
 
@@ -94,34 +97,31 @@ true_wr_1col
 
 
 
+## Relative Efficiency for the original and Doubly Robust Estimator
 
 
-
-## Relative Efficiency for the original and OW Weighted Estimator
-
-
-```{r}
+```{r, warning=FALSE}
 
 set.seed(1)
 
 re_count <- 15
 
 empirical_var_ori <- numeric(re_count)
-empirical_var_OW <- numeric(re_count)
+empirical_var_DR <- numeric(re_count)
 
 bias_ori <- numeric(re_count)
-bias_OW <- numeric(re_count)
+bias_DR <- numeric(re_count)
 
 mse_ori <- numeric(re_count)
-mse_OW <- numeric(re_count)
+mse_DR <- numeric(re_count)
 
 WR_sim_val0_ori <- numeric(re_count)
 WR_sim_valInf_ori <- numeric(re_count)
 WR_sim_valNA_ori <- numeric(re_count)
 
-WR_sim_val0_OW <- numeric(re_count)
-WR_sim_valInf_OW <- numeric(re_count)
-WR_sim_valNA_OW <- numeric(re_count)
+WR_sim_val0_DR <- numeric(re_count)
+WR_sim_valInf_DR <- numeric(re_count)
+WR_sim_valNA_DR <- numeric(re_count)
 
 
 for (count_temp in 1:re_count){
@@ -140,7 +140,7 @@ b02 <- 0.05
 
 sim_num <- 1000
 WR_sim_1col <- numeric(sim_num)
-WR_sim_1col_OW <- numeric(sim_num)
+WR_sim_1col_DR <- numeric(sim_num)
 
 for (sim_count in 1:sim_num){
   
@@ -223,53 +223,128 @@ ctrl_winpr_1col <- sum(as.vector(ctrlwin_1col),
 
 WR_sim_1col[sim_count] <- trt_winpr_1col/ctrl_winpr_1col
 
-  
 
 
 
-###############OW######################
 
-df_trt_1col_OW <- data.frame(outcomes_trt)
-df_ctrl_1col_OW <- data.frame(outcomes_ctrl)
+###############DR######################
 
-colnames(df_trt_1col_OW) <- "outcomes_comb"
-colnames(df_ctrl_1col_OW) <- "outcomes_comb"
+df_trt_1col_DR <- data.frame(outcomes_trt)
+df_ctrl_1col_DR <- data.frame(outcomes_ctrl)
 
-df_comb_1col <- rbind(df_trt_1col_OW, df_ctrl_1col_OW)
+colnames(df_trt_1col_DR) <- "outcomes_comb"
+colnames(df_ctrl_1col_DR) <- "outcomes_comb"
+
+df_comb_1col <- rbind(df_trt_1col_DR, df_ctrl_1col_DR)
 df_comb_1col$treatment <- c(rep(1,n_count), rep(0,n_count))
 df_comb_1col$x_covariate <- c(x1_trt, x1_ctrl)
+
+###DR mu-function
+
+if((!(1 %in% df_comb_1col[df_comb_1col$treatment==1,]$outcomes_comb) &
+     !(2 %in% df_comb_1col[df_comb_1col$treatment==1,]$outcomes_comb)) |
+     (!(1 %in% df_comb_1col[df_comb_1col$treatment==0,]$outcomes_comb) &
+     !(2 %in% df_comb_1col[df_comb_1col$treatment==0,]$outcomes_comb))){
+  break
+}
+else{
+dr_trt <- vglm(factor(outcomes_comb) ~ x_covariate, data = df_comb_1col[df_comb_1col$treatment==1,],
+               family = multinomial)
+dr_ctrl <- vglm(factor(outcomes_comb) ~ x_covariate, data = df_comb_1col[df_comb_1col$treatment==0,],
+               family = multinomial)
+
+cond_prob_trt <- predictvglm(dr_trt, type = "response")
+cond_prob_ctrl <- predictvglm(dr_ctrl, type = "response")
+}
+
+prob1_0 <-data.frame(rep(0,n_count))
+colnames(prob1_0) <- "1"
+prob2_0 <-data.frame(rep(0,n_count))
+colnames(prob2_0) <- "2"
+
+
+if(!"1" %in% colnames(cond_prob_trt)){
+  cond_prob_trt <- cbind(prob1_0, cond_prob_trt)
+}
+
+if(!"1" %in% colnames(cond_prob_ctrl)){
+  cond_prob_ctrl <- cbind(prob1_0, cond_prob_ctrl)
+}
+if(!"2" %in% colnames(cond_prob_trt)){
+  col1 <- data.frame(cond_prob_trt[,1])
+  colnames(col1) <- "1"
+  col3 <- data.frame(cond_prob_trt[,2])
+  colnames(col3) <- "3"
+  cond_prob_trt <- cbind(col1, prob2_0, col3)
+}
+
+if(!"2" %in% colnames(cond_prob_ctrl)){
+  col1 <- data.frame(cond_prob_ctrl[,1])
+  colnames(col1) <- "1"
+  col3 <- data.frame(cond_prob_ctrl[,2])
+  colnames(col3) <- "3"
+  cond_prob_ctrl <- cbind(col1, prob2_0, col3)
+}
+
+
+
 
 ###PS
 PropScore <- glm(treatment~x_covariate, data = df_comb_1col, family=binomial)
 pi_func <- fitted(PropScore)
 
-trtwin_1col_OW <- matrix(NA, nrow = nrow(df_trt_1col_OW), ncol = nrow(df_ctrl_1col_OW))
-ctrlwin_1col_OW <- matrix(NA, nrow = nrow(df_trt_1col_OW), ncol = nrow(df_ctrl_1col_OW))
+trtwin_1col_DR <- matrix(NA, nrow = nrow(df_trt_1col_DR), ncol = nrow(df_ctrl_1col_DR))
+ctrlwin_1col_DR <- matrix(NA, nrow = nrow(df_trt_1col_DR), ncol = nrow(df_ctrl_1col_DR))
+
+
 
 for (i in 1:n_count){
   for(j in (n_count+1):(2*n_count)){
 
       if (df_comb_1col[i,1] > df_comb_1col[j,1]){
-        trtwin_1col_OW[i,j-n_count] = ((1-pi_func[i])*pi_func[j])/2
-        ctrlwin_1col_OW[i,j-n_count] = 0
+        trtwin_1col_DR[i,j-n_count] = (0.5)*((1/(pi_func[i]*(1-pi_func[j])))-
+          ((1/(pi_func[i]*(1-pi_func[j])))-1)*(cond_prob_trt[i,2]*cond_prob_ctrl[j-n_count,1]+
+                                               cond_prob_trt[i,3]*cond_prob_ctrl[j-n_count,1]+
+                                               cond_prob_trt[i,3]*cond_prob_ctrl[j-n_count,2])+
+                                              (cond_prob_ctrl[j-n_count,2]*cond_prob_trt[i,1]+
+                                               cond_prob_ctrl[j-n_count,3]*cond_prob_trt[i,1]+
+                                               cond_prob_ctrl[j-n_count,3]*cond_prob_trt[i,2]))
+        ctrlwin_1col_DR[i,j-n_count] = (0.5)*(0 -
+          ((1/(pi_func[i]*(1-pi_func[j])))-1)*(cond_prob_trt[i,1]*cond_prob_ctrl[j-n_count,2]+
+                                               cond_prob_trt[i,1]*cond_prob_ctrl[j-n_count,3]+
+                                               cond_prob_trt[i,2]*cond_prob_ctrl[j-n_count,3])+
+                                              (cond_prob_ctrl[j-n_count,1]*cond_prob_trt[i,2]+
+                                               cond_prob_ctrl[j-n_count,1]*cond_prob_trt[i,3]+
+                                               cond_prob_ctrl[j-n_count,2]*cond_prob_trt[i,3]))
       }
       else if (df_comb_1col[i,1] < df_comb_1col[j,1]){
-        trtwin_1col_OW[i,j-n_count] = 0
-        ctrlwin_1col_OW[i,j-n_count] = ((1-pi_func[i])*pi_func[j])/2
+        trtwin_1col_DR[i,j-n_count] = (0.5)*(0 -
+          ((1/(pi_func[i]*(1-pi_func[j])))-1)*(cond_prob_trt[i,2]*cond_prob_ctrl[j-n_count,1]+
+                                               cond_prob_trt[i,3]*cond_prob_ctrl[j-n_count,1]+
+                                               cond_prob_trt[i,3]*cond_prob_ctrl[j-n_count,2])+
+                                              (cond_prob_ctrl[j-n_count,2]*cond_prob_trt[i,1]+
+                                               cond_prob_ctrl[j-n_count,3]*cond_prob_trt[i,1]+
+                                               cond_prob_ctrl[j-n_count,3]*cond_prob_trt[i,2]))
+        ctrlwin_1col_DR[i,j-n_count] = (0.5)*((1/(pi_func[i]*(1-pi_func[j])))-
+          ((1/(pi_func[i]*(1-pi_func[j])))-1)*(cond_prob_trt[i,1]*cond_prob_ctrl[j-n_count,2]+
+                                               cond_prob_trt[i,1]*cond_prob_ctrl[j-n_count,3]+
+                                               cond_prob_trt[i,2]*cond_prob_ctrl[j-n_count,3])+
+                                              (cond_prob_ctrl[j-n_count,1]*cond_prob_trt[i,2]+
+                                               cond_prob_ctrl[j-n_count,1]*cond_prob_trt[i,3]+
+                                               cond_prob_ctrl[j-n_count,2]*cond_prob_trt[i,3]))
       }
 
   }
 }
 
 
-trt_winpr_1col_OW <- sum(as.vector(trtwin_1col_OW), na.rm = T)/(choose(2*n_count,2))
-ctrl_winpr_1col_OW <- sum(as.vector(ctrlwin_1col_OW), na.rm = T)/(choose(2*n_count,2))
+trt_winpr_1col_DR <- sum(as.vector(trtwin_1col_DR), na.rm = T)/(choose(2*n_count,2))
+ctrl_winpr_1col_DR <- sum(as.vector(ctrlwin_1col_DR), na.rm = T)/(choose(2*n_count,2))
 
-WR_sim_1col_OW[sim_count] <- trt_winpr_1col_OW/ctrl_winpr_1col_OW
+WR_sim_1col_DR[sim_count] <- trt_winpr_1col_DR/ctrl_winpr_1col_DR
 
 
 }
-
 
 
 WR_sim_noninf_1col <- WR_sim_1col[WR_sim_1col!=Inf &
@@ -287,30 +362,33 @@ WR_sim_valNA_ori[count_temp] <- length(WR_sim_1col[is.na(WR_sim_1col)])
 
 ###########################################
 
-WR_sim_noninf_1col_OW <- WR_sim_1col_OW[WR_sim_1col_OW!=Inf &
-                                        WR_sim_1col_OW!=0 &
-                                        !is.na(WR_sim_1col_OW)]
+WR_sim_noninf_1col_DR <- WR_sim_1col_DR[WR_sim_1col_DR!=Inf & 
+                                        WR_sim_1col_DR!=0 & 
+                                        !is.na(WR_sim_1col_DR)]
 
-empirical_var_OW[count_temp] <- var(WR_sim_noninf_1col_OW)
-bias_OW[count_temp] <- mean(WR_sim_noninf_1col_OW) - true_wr_1col
-mse_OW[count_temp] <- bias_OW[count_temp]^2 + empirical_var_OW[count_temp]
+empirical_var_DR[count_temp] <- var(WR_sim_noninf_1col_DR)
+bias_DR[count_temp] <- mean(WR_sim_noninf_1col_DR) - true_wr_1col
+mse_DR[count_temp] <- bias_DR[count_temp]^2 + empirical_var_DR[count_temp]
 
-
-WR_sim_val0_OW[count_temp] <- length(WR_sim_1col_OW[WR_sim_1col_OW = 0])
-WR_sim_valInf_OW[count_temp] <- length(WR_sim_1col_OW[WR_sim_1col_OW = Inf])
-WR_sim_valNA_OW[count_temp] <- length(WR_sim_1col_OW[is.na(WR_sim_1col_OW)])
+WR_sim_val0_DR[count_temp] <- length(WR_sim_1col_DR[WR_sim_1col_DR = 0])
+WR_sim_valInf_DR[count_temp] <- length(WR_sim_1col_DR[WR_sim_1col_DR = Inf])
+WR_sim_valNA_DR[count_temp] <- length(WR_sim_1col_DR[is.na(WR_sim_1col_DR)])
 
 }
 
-relative_eff <- empirical_var_ori/empirical_var_OW
+
+
+
+
+relative_eff <- empirical_var_ori/empirical_var_DR
+#relative_eff
 
 save(re_count, relative_eff,
      empirical_var_ori, bias_ori, mse_ori,
-     empirical_var_OW, bias_OW, mse_OW,
+     empirical_var_DR, bias_DR, mse_DR,
      WR_sim_val0_ori, WR_sim_valInf_ori, WR_sim_valNA_ori,
-     WR_sim_val0_OW, WR_sim_valInf_OW, WR_sim_valNA_OW, file = "OW_RE_Output.RData")
+     WR_sim_val0_DR, WR_sim_valInf_DR, WR_sim_valNA_DR, file = "DR_RE_Output.RData")
 ```
-
 
 
 
@@ -319,17 +397,18 @@ save(re_count, relative_eff,
 
 ```{r, warning=FALSE}
 library(ggplot2)
+#load("DR_RE_Output.RData")
 
 var_ori_df <- data.frame(empirical_var_ori)
-var_OW_df <- data.frame(empirical_var_OW)
+var_DR_df <- data.frame(empirical_var_DR)
 
 colnames(var_ori_df) <- "variance"
-colnames(var_OW_df) <- "variance"
+colnames(var_DR_df) <- "variance"
 
-sim_df <- rbind(var_ori_df, var_OW_df)
-sim_df$mse <- c(mse_ori, mse_OW)
-sim_df$bias <- c(bias_ori, bias_OW)
-sim_df$estimator <- c(rep("original",re_count), rep("OW",re_count))
+sim_df <- rbind(var_ori_df, var_DR_df)
+sim_df$mse <- c(mse_ori, mse_DR)
+sim_df$bias <- c(bias_ori, bias_DR)
+sim_df$estimator <- c(rep("original",re_count), rep("DR",re_count))
 sim_df$estimator <- as.factor(sim_df$estimator)
 sim_df$samplesize <- c(c(1:re_count)*20, c(1:re_count)*20)
 
@@ -337,7 +416,7 @@ var_plot <- ggplot(sim_df, aes(x=samplesize, y = variance,
                                   color = estimator)) + 
   geom_point() + 
   geom_line(aes(group = estimator)) + 
-  scale_color_manual(values = c("original" = "black", "OW" = "red"))+
+  scale_color_manual(values = c("original" = "black", "DR" = "red"))+
   ggtitle("Variance comparison from Simulation") +
   xlab("Sample Size") + ylab("Variance") +
   scale_x_continuous(breaks=seq(0,20*re_count,10)) + 
@@ -356,7 +435,7 @@ mse_plot <- ggplot(sim_df, aes(x=samplesize, y = mse,
                                   color = estimator)) + 
   geom_point() + 
   geom_line(aes(group = estimator)) + 
-  scale_color_manual(values = c("original" = "black", "OW" = "red"))+
+  scale_color_manual(values = c("original" = "black", "DR" = "red"))+
   ggtitle("MSE comparison from Simulation") +
   xlab("Sample Size") + ylab("MSE") +
   scale_x_continuous(breaks=seq(0,20*re_count,10)) + 
@@ -367,7 +446,6 @@ mse_plot <- ggplot(sim_df, aes(x=samplesize, y = mse,
     axis.title.y = element_text(size=12),
     legend.text = element_text(size=12)
     )
-
 
 
 mse_plot
@@ -381,7 +459,7 @@ re_plot <- ggplot(re_df, aes(x=samplesize, y = relative_eff)) +
   geom_point(color = "black") + 
   geom_line(color = "black") +
   geom_hline(yintercept=1, linetype="dashed", color = "red") +
-  ggtitle("Relative Efficiency from Simulation, OW vs Original") +
+  ggtitle("Relative Efficiency from Simulation, Doubly Robust vs Original") +
   xlab("Sample Size") + ylab("Relative Efficiency") +
   scale_x_continuous(breaks=seq(0,20*re_count,10)) +
   theme(
@@ -396,16 +474,18 @@ re_plot
 
 ```
 
+
+
+
 ## Run Time
 
 ```{r}
 end_time <- Sys.time()
 
 run_time <- end_time - start_time
+
 run_time
 ```
-
-
 
 
 
