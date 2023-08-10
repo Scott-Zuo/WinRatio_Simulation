@@ -383,11 +383,11 @@ WR_sim_valNA_DR[count_temp] <- length(WR_sim_1col_DR[is.na(WR_sim_1col_DR)])
 relative_eff <- empirical_var_ori/empirical_var_DR
 #relative_eff
 
-save(re_count, relative_eff,
-     empirical_var_ori, bias_ori, mse_ori,
-     empirical_var_DR, bias_DR, mse_DR,
-     WR_sim_val0_ori, WR_sim_valInf_ori, WR_sim_valNA_ori,
-     WR_sim_val0_DR, WR_sim_valInf_DR, WR_sim_valNA_DR, file = "DR_RE_Output.RData")
+# save(re_count, relative_eff,
+#      empirical_var_ori, bias_ori, mse_ori,
+#      empirical_var_DR, bias_DR, mse_DR,
+#      WR_sim_val0_ori, WR_sim_valInf_ori, WR_sim_valNA_ori,
+#      WR_sim_val0_DR, WR_sim_valInf_DR, WR_sim_valNA_DR, file = "DR_RE_Output.RData")
 ```
 
 
