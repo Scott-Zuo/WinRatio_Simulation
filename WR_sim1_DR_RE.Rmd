@@ -338,8 +338,45 @@ for (i in 1:n_count){
 }
 
 
-trt_winpr_1col_DR <- sum(as.vector(trtwin_1col_DR), na.rm = T)/(choose(2*n_count,2))
-ctrl_winpr_1col_DR <- sum(as.vector(ctrlwin_1col_DR), na.rm = T)/(choose(2*n_count,2))
+trtwin_1col_DR_2 <-
+      matrix(0,
+             nrow = nrow(df_trt_1col_DR),
+             ncol = nrow(df_ctrl_1col_DR))
+ctrlwin_1col_DR_2 <-
+      matrix(0,
+             nrow = nrow(df_trt_1col_DR),
+             ncol = nrow(df_ctrl_1col_DR))
+    
+for(i2 in 1:n_count-1){
+      for (j2 in (i2+1):n_count){
+        trtwin_1col_DR_2[i2,j2] <- 0.5*(
+          (cond_prob_trt[i2, 2] * cond_prob_trt[j2, 1] +
+           cond_prob_trt[i2, 3] * cond_prob_trt[j2, 1] +
+           cond_prob_trt[i2, 3] * cond_prob_trt[j2, 2]) + 
+          (cond_prob_trt[j2, 2] * cond_prob_trt[i2, 1] +
+           cond_prob_trt[j2, 3] * cond_prob_trt[i2, 1] +
+           cond_prob_trt[j2, 3] * cond_prob_trt[i2, 2])
+          )
+        ctrlwin_1col_DR_2[i2,j2] <- 0.5*(
+          (cond_prob_ctrl[i2, 2] * cond_prob_ctrl[j2, 1] +
+           cond_prob_ctrl[i2, 3] * cond_prob_ctrl[j2, 1] +
+           cond_prob_ctrl[i2, 3] * cond_prob_ctrl[j2, 2]) + 
+          (cond_prob_ctrl[j2, 2] * cond_prob_ctrl[i2, 1] +
+           cond_prob_ctrl[j2, 3] * cond_prob_ctrl[i2, 1] +
+           cond_prob_ctrl[j2, 3] * cond_prob_ctrl[i2, 2])
+        )
+        
+        
+        
+      }
+    }
+    
+    trt_winpr_1col_DR <-
+      (sum(as.vector(trtwin_1col_DR), na.rm = T) + 
+         sum(as.vector(trtwin_1col_DR_2), na.rm = T)) / (choose(2 * n_count, 2))
+    ctrl_winpr_1col_DR <-
+      (sum(as.vector(ctrlwin_1col_DR), na.rm = T) +
+         sum(as.vector(ctrlwin_1col_DR_2), na.rm = T)) / (choose(2 * n_count, 2))
 
 WR_sim_1col_DR[sim_count] <- trt_winpr_1col_DR/ctrl_winpr_1col_DR
 
@@ -383,12 +420,15 @@ WR_sim_valNA_DR[count_temp] <- length(WR_sim_1col_DR[is.na(WR_sim_1col_DR)])
 relative_eff <- empirical_var_ori/empirical_var_DR
 #relative_eff
 
-# save(re_count, relative_eff,
-#      empirical_var_ori, bias_ori, mse_ori,
-#      empirical_var_DR, bias_DR, mse_DR,
-#      WR_sim_val0_ori, WR_sim_valInf_ori, WR_sim_valNA_ori,
-#      WR_sim_val0_DR, WR_sim_valInf_DR, WR_sim_valNA_DR, file = "DR_RE_Output.RData")
+save(re_count, relative_eff,
+     empirical_var_ori, bias_ori, mse_ori,
+     empirical_var_DR, bias_DR, mse_DR,
+     WR_sim_val0_ori, WR_sim_valInf_ori, WR_sim_valNA_ori,
+     WR_sim_val0_DR, WR_sim_valInf_DR, WR_sim_valNA_DR, file = "DR_RE_Output.RData")
 ```
+
+
+
 
 
 
@@ -448,8 +488,31 @@ mse_plot <- ggplot(sim_df, aes(x=samplesize, y = mse,
     )
 
 
+
 mse_plot
 
+
+
+
+bias_plot <- ggplot(sim_df, aes(x = samplesize, y = abs(bias))) + 
+  geom_point(aes(color = estimator)) + 
+  geom_line(aes(color = estimator)) +
+  scale_color_manual(values=c("red", "black")) +
+  ggtitle("Win Ratio Bias from Simulation") +
+  xlab("Sample Size") + ylab("Bias") +
+  scale_x_continuous(breaks=seq(0,300,20)) +
+  theme(
+    plot.title = element_text(color="red", size=12, face="bold.italic"),
+    axis.title.x = element_text(size=12),
+    axis.text.x = element_text(size=8),
+    axis.title.y = element_text(size=12),
+    legend.text = element_text(size=12)
+  )
+
+
+
+
+bias_plot
 
 
 re_df <- data.frame(relative_eff)
@@ -470,9 +533,14 @@ re_plot <- ggplot(re_df, aes(x=samplesize, y = relative_eff)) +
     legend.text = element_text(size=12)
     )
 
+
+
 re_plot
 
 ```
+
+
+
 
 
 
@@ -486,6 +554,16 @@ run_time <- end_time - start_time
 
 run_time
 ```
+
+
+
+
+
+
+
+
+
+
 
 
 
