@@ -459,11 +459,11 @@ var_plot <- ggplot(sim_df, aes(x=samplesize, y = variance,
   scale_color_manual(values = c("original" = "black", "DR" = "red"))+
   ggtitle("Variance comparison from Simulation") +
   xlab("Sample Size") + ylab("Variance") +
-  scale_x_continuous(breaks=seq(0,20*re_count,10)) + 
+  scale_x_continuous(breaks=seq(0,20*re_count,50)) + 
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
-    axis.text.x = element_text(size=6),
+    axis.text.x = element_text(size=12),
     axis.title.y = element_text(size=12),
     legend.text = element_text(size=12)
     )
@@ -478,11 +478,11 @@ mse_plot <- ggplot(sim_df, aes(x=samplesize, y = mse,
   scale_color_manual(values = c("original" = "black", "DR" = "red"))+
   ggtitle("MSE comparison from Simulation") +
   xlab("Sample Size") + ylab("MSE") +
-  scale_x_continuous(breaks=seq(0,20*re_count,10)) + 
+  scale_x_continuous(breaks=seq(0,20*re_count,50)) + 
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
-    axis.text.x = element_text(size=6),
+    axis.text.x = element_text(size=12),
     axis.title.y = element_text(size=12),
     legend.text = element_text(size=12)
     )
@@ -500,11 +500,11 @@ bias_plot <- ggplot(sim_df, aes(x = samplesize, y = abs(bias))) +
   scale_color_manual(values=c("red", "black")) +
   ggtitle("Win Ratio Bias from Simulation") +
   xlab("Sample Size") + ylab("Bias") +
-  scale_x_continuous(breaks=seq(0,300,20)) +
+  scale_x_continuous(breaks=seq(0,20*re_count,50)) +
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
-    axis.text.x = element_text(size=8),
+    axis.text.x = element_text(size=12),
     axis.title.y = element_text(size=12),
     legend.text = element_text(size=12)
   )
@@ -524,14 +524,16 @@ re_plot <- ggplot(re_df, aes(x=samplesize, y = relative_eff)) +
   geom_hline(yintercept=1, linetype="dashed", color = "red") +
   ggtitle("Relative Efficiency from Simulation, Doubly Robust vs Original") +
   xlab("Sample Size") + ylab("Relative Efficiency") +
-  scale_x_continuous(breaks=seq(0,20*re_count,10)) +
+  scale_x_continuous(breaks=seq(0,20*re_count,50)) +
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
-    axis.text.x = element_text(size=8),
+    axis.text.x = element_text(size=12),
     axis.title.y = element_text(size=12),
     legend.text = element_text(size=12)
     )
+
+
 
 
 
@@ -554,8 +556,6 @@ run_time <- end_time - start_time
 
 run_time
 ```
-
-
 
 
 
