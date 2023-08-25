@@ -53,7 +53,7 @@ inv_logit <- function(logit) exp(logit) / (1 + exp(logit))
 
 re_count <- 15
 
-true_wr <- numeric(re_count)
+#true_wr <- numeric(re_count)
 
 empirical_var_Ori <- numeric(re_count)
 empirical_var_IPS <- numeric(re_count)
@@ -412,8 +412,10 @@ dr_ctrl <- vglm(factor(outcomes_comb) ~ x1 + x2 + x3 + x4 + x5 + x6,
                 data = df_comb_1col[df_comb_1col$treatment==0,],
                family = multinomial)
 
-cond_prob_trt <- predictvglm(dr_trt, type = "response")
-cond_prob_ctrl <- predictvglm(dr_ctrl, type = "response")
+cond_prob_trt <- predictvglm(dr_trt, newdata = df_comb_1col, 
+                             type = "response")
+cond_prob_ctrl <- predictvglm(dr_ctrl, newdata = df_comb_1col,
+                              type = "response")
 }
 
 prob1_0 <-data.frame(rep(0,n_count))
@@ -445,10 +447,13 @@ if(!"2" %in% colnames(cond_prob_ctrl)){
   cond_prob_ctrl <- cbind(col1, prob2_0, col3)
 }
 
-cond_prob <- rbind(cond_prob_trt, cond_prob_ctrl)
+#cond_prob <- rbind(cond_prob_trt, cond_prob_ctrl)
 
 g_hfunc_DR1 <- matrix(0, nrow = 2*nrow(df_trt_1col), ncol = 2*nrow(df_ctrl_1col))
 g_hfunc_DR2 <- matrix(0, nrow = 2*nrow(df_trt_1col), ncol = 2*nrow(df_ctrl_1col))
+
+
+
 
 
 
@@ -463,16 +468,16 @@ for (i in 1:(2*n_count-1)){
             (df_comb_1col[i, "treatment"] * (1 - df_comb_1col[j, "treatment"]) /
                (pi_func[i] * (1 - pi_func[j])) - 1) *
             (
-              cond_prob[i, 2] * cond_prob[j, 1] +
-                cond_prob[i, 3] * cond_prob[j, 1] +
-                cond_prob[i, 3] * cond_prob[j, 2]
+              cond_prob_trt[i, 2] * cond_prob_ctrl[j, 1] +
+                cond_prob_trt[i, 3] * cond_prob_ctrl[j, 1] +
+                cond_prob_trt[i, 3] * cond_prob_ctrl[j, 2]
             ) + 0 -
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) /
                (pi_func[j] * (1 - pi_func[i])) - 1) *
             (
-              cond_prob[j, 2] * cond_prob[i, 1] +
-                cond_prob[j, 3] * cond_prob[i, 1] +
-                cond_prob[j, 3] * cond_prob[i, 2]
+              cond_prob_trt[j, 2] * cond_prob_ctrl[i, 1] +
+                cond_prob_trt[j, 3] * cond_prob_ctrl[i, 1] +
+                cond_prob_trt[j, 3] * cond_prob_ctrl[i, 2]
             )
         )
         
@@ -482,18 +487,18 @@ for (i in 1:(2*n_count-1)){
             (df_comb_1col[i, "treatment"] * (1 - df_comb_1col[j, "treatment"]) /
                (pi_func[i] * (1 - pi_func[j])) - 1) *
             (
-              cond_prob[i, 1] * cond_prob[j, 2] +
-                cond_prob[i, 1] * cond_prob[j, 3] +
-                cond_prob[i, 2] * cond_prob[j, 3]
+              cond_prob_trt[i, 1] * cond_prob_ctrl[j, 2] +
+                cond_prob_trt[i, 1] * cond_prob_ctrl[j, 3] +
+                cond_prob_trt[i, 2] * cond_prob_ctrl[j, 3]
             ) +
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) *
                1 / (pi_func[j] * (1 - pi_func[i]))) -
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) /
                (pi_func[j] * (1 - pi_func[i])) - 1) *
             (
-              cond_prob[j, 1] * cond_prob[i, 2] +
-                cond_prob[j, 1] * cond_prob[i, 3] +
-                cond_prob[j, 2] * cond_prob[i, 3]
+              cond_prob_trt[j, 1] * cond_prob_ctrl[i, 2] +
+                cond_prob_trt[j, 1] * cond_prob_ctrl[i, 3] +
+                cond_prob_trt[j, 2] * cond_prob_ctrl[i, 3]
             )
         )
       }
@@ -503,18 +508,18 @@ for (i in 1:(2*n_count-1)){
             (df_comb_1col[i, "treatment"] * (1 - df_comb_1col[j, "treatment"]) /
                (pi_func[i] * (1 - pi_func[j])) - 1) *
             (
-              cond_prob[i, 2] * cond_prob[j, 1] +
-                cond_prob[i, 3] * cond_prob[j, 1] +
-                cond_prob[i, 3] * cond_prob[j, 2]
+              cond_prob_trt[i, 2] * cond_prob_ctrl[j, 1] +
+                cond_prob_trt[i, 3] * cond_prob_ctrl[j, 1] +
+                cond_prob_trt[i, 3] * cond_prob_ctrl[j, 2]
             ) +
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) *
                1 / (pi_func[j] * (1 - pi_func[i]))) -
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) /
                (pi_func[j] * (1 - pi_func[i])) - 1) *
             (
-              cond_prob[j, 2] * cond_prob[i, 1] +
-                cond_prob[j, 3] * cond_prob[i, 1] +
-                cond_prob[j, 3] * cond_prob[i, 2]
+              cond_prob_trt[j, 2] * cond_prob_ctrl[i, 1] +
+                cond_prob_trt[j, 3] * cond_prob_ctrl[i, 1] +
+                cond_prob_trt[j, 3] * cond_prob_ctrl[i, 2]
             )
         )
         
@@ -524,17 +529,17 @@ for (i in 1:(2*n_count-1)){
             (df_comb_1col[i, "treatment"] * (1 - df_comb_1col[j, "treatment"]) /
                (pi_func[i] * (1 - pi_func[j])) - 1) *
             (
-              cond_prob[i, 1] * cond_prob[j, 2] +
-                cond_prob[i, 1] * cond_prob[j, 3] +
-                cond_prob[i, 2] * cond_prob[j, 3]
+              cond_prob_trt[i, 1] * cond_prob_ctrl[j, 2] +
+                cond_prob_trt[i, 1] * cond_prob_ctrl[j, 3] +
+                cond_prob_trt[i, 2] * cond_prob_ctrl[j, 3]
             ) +
             0 -
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) /
                (pi_func[j] * (1 - pi_func[i])) - 1) *
             (
-              cond_prob[j, 1] * cond_prob[i, 2] +
-                cond_prob[j, 1] * cond_prob[i, 3] +
-                cond_prob[j, 2] * cond_prob[i, 3]
+              cond_prob_trt[j, 1] * cond_prob_ctrl[i, 2] +
+                cond_prob_trt[j, 1] * cond_prob_ctrl[i, 3] +
+                cond_prob_trt[j, 2] * cond_prob_ctrl[i, 3]
             )
         )
 
@@ -570,16 +575,16 @@ for (i in 1:(2*n_count-1)){
             (df_comb_1col[i, "treatment"] * (1 - df_comb_1col[j, "treatment"]) *
                (1 - pi_func[i]) * pi_func[j] - 1) *
             (
-              cond_prob[i, 2] * cond_prob[j, 1] +
-                cond_prob[i, 3] * cond_prob[j, 1] +
-                cond_prob[i, 3] * cond_prob[j, 2]
+              cond_prob_trt[i, 2] * cond_prob_ctrl[j, 1] +
+                cond_prob_trt[i, 3] * cond_prob_ctrl[j, 1] +
+                cond_prob_trt[i, 3] * cond_prob_ctrl[j, 2]
             ) + 0 -
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) *
                (1 - pi_func[j]) * pi_func[i] - 1) *
             (
-              cond_prob[j, 2] * cond_prob[i, 1] +
-                cond_prob[j, 3] * cond_prob[i, 1] +
-                cond_prob[j, 3] * cond_prob[i, 2]
+              cond_prob_trt[j, 2] * cond_prob_ctrl[i, 1] +
+                cond_prob_trt[j, 3] * cond_prob_ctrl[i, 1] +
+                cond_prob_trt[j, 3] * cond_prob_ctrl[i, 2]
             )
         )
         
@@ -589,18 +594,18 @@ for (i in 1:(2*n_count-1)){
             (df_comb_1col[i, "treatment"] * (1 - df_comb_1col[j, "treatment"]) *
                (1 - pi_func[i]) * pi_func[j] - 1) *
             (
-              cond_prob[i, 1] * cond_prob[j, 2] +
-                cond_prob[i, 1] * cond_prob[j, 3] +
-                cond_prob[i, 2] * cond_prob[j, 3]
+              cond_prob_trt[i, 1] * cond_prob_ctrl[j, 2] +
+                cond_prob_trt[i, 1] * cond_prob_ctrl[j, 3] +
+                cond_prob_trt[i, 2] * cond_prob_ctrl[j, 3]
             ) +
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) *
                1 * (1 - pi_func[j]) * pi_func[i]) -
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) *
                (1 - pi_func[j]) * pi_func[i] - 1) *
             (
-              cond_prob[j, 1] * cond_prob[i, 2] +
-                cond_prob[j, 1] * cond_prob[i, 3] +
-                cond_prob[j, 2] * cond_prob[i, 3]
+              cond_prob_trt[j, 1] * cond_prob_ctrl[i, 2] +
+                cond_prob_trt[j, 1] * cond_prob_ctrl[i, 3] +
+                cond_prob_trt[j, 2] * cond_prob_ctrl[i, 3]
             )
         )
       }
@@ -610,18 +615,18 @@ for (i in 1:(2*n_count-1)){
             (df_comb_1col[i, "treatment"] * (1 - df_comb_1col[j, "treatment"]) *
                (1 - pi_func[i]) * pi_func[j] - 1) *
             (
-              cond_prob[i, 2] * cond_prob[j, 1] +
-                cond_prob[i, 3] * cond_prob[j, 1] +
-                cond_prob[i, 3] * cond_prob[j, 2]
+              cond_prob_trt[i, 2] * cond_prob_ctrl[j, 1] +
+                cond_prob_trt[i, 3] * cond_prob_ctrl[j, 1] +
+                cond_prob_trt[i, 3] * cond_prob_ctrl[j, 2]
             ) +
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) *
                1 * (1 - pi_func[j]) * pi_func[i]) -
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) *
                (1 - pi_func[j]) * pi_func[i] - 1) *
             (
-              cond_prob[j, 2] * cond_prob[i, 1] +
-                cond_prob[j, 3] * cond_prob[i, 1] +
-                cond_prob[j, 3] * cond_prob[i, 2]
+              cond_prob_trt[j, 2] * cond_prob_ctrl[i, 1] +
+                cond_prob_trt[j, 3] * cond_prob_ctrl[i, 1] +
+                cond_prob_trt[j, 3] * cond_prob_ctrl[i, 2]
             )
         )
         
@@ -631,17 +636,17 @@ for (i in 1:(2*n_count-1)){
             (df_comb_1col[i, "treatment"] * (1 - df_comb_1col[j, "treatment"]) *
                (1 - pi_func[i]) * pi_func[j] - 1) *
             (
-              cond_prob[i, 1] * cond_prob[j, 2] +
-                cond_prob[i, 1] * cond_prob[j, 3] +
-                cond_prob[i, 2] * cond_prob[j, 3]
+              cond_prob_trt[i, 1] * cond_prob_ctrl[j, 2] +
+                cond_prob_trt[i, 1] * cond_prob_ctrl[j, 3] +
+                cond_prob_trt[i, 2] * cond_prob_ctrl[j, 3]
             ) +
             0 -
             (df_comb_1col[j, "treatment"] * (1 - df_comb_1col[i, "treatment"]) *
                (1 - pi_func[j]) * pi_func[i] - 1) *
             (
-              cond_prob[j, 1] * cond_prob[i, 2] +
-                cond_prob[j, 1] * cond_prob[i, 3] +
-                cond_prob[j, 2] * cond_prob[i, 3]
+              cond_prob_trt[j, 1] * cond_prob_ctrl[i, 2] +
+                cond_prob_trt[j, 1] * cond_prob_ctrl[i, 3] +
+                cond_prob_trt[j, 2] * cond_prob_ctrl[i, 3]
             )
         )
       }
@@ -805,6 +810,10 @@ sim_df$estimator <- as.factor(sim_df$estimator)
 sim_df$samplesize <- c(c(1:re_count)*20, c(1:re_count)*20, c(1:re_count)*20,
                        c(1:re_count)*20, c(1:re_count)*20)
 
+sim_df <- sim_df[is.finite(rowSums(cbind(sim_df$variance, 
+                                         sim_df$mse,
+                                         sim_df$bias))), ]
+
 var_plot <- ggplot(sim_df, aes(x=samplesize, y = variance,
                                   color = estimator)) + 
   geom_point() + 
@@ -821,7 +830,6 @@ var_plot <- ggplot(sim_df, aes(x=samplesize, y = variance,
     axis.title.y = element_text(size=12),
     legend.text = element_text(size=12)
     )
-
 
 
 var_plot
@@ -843,9 +851,6 @@ mse_plot <- ggplot(sim_df, aes(x=samplesize, y = mse,
     axis.title.y = element_text(size=12),
     legend.text = element_text(size=12)
     )
-
-
-
 
 mse_plot
 
@@ -908,6 +913,11 @@ re_plot <- ggplot(re_df, aes(x=samplesize, y = relative_eff,
 
 
 re_plot
+
+
+
+
+
 
 ```
 
