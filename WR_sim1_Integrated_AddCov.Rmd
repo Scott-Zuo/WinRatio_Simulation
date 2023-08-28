@@ -52,7 +52,7 @@ inv_logit <- function(logit) exp(logit) / (1 + exp(logit))
 ```{r}
 
 re_count <- 15
-
+step_size <- 20
 #true_wr <- numeric(re_count)
 
 empirical_var_Ori <- numeric(re_count)
@@ -87,7 +87,7 @@ set.seed(1)
 
 for (count_temp in 1:re_count){
 
-n_count <- count_temp*20
+n_count <- count_temp*step_size
 
 trt_eff1 <- 1
 bi_trt <- c(0.1,0.1,0.1,0.1,0.1,0.1)
@@ -767,7 +767,7 @@ relative_eff_OW <- empirical_var_Ori/empirical_var_OW
 relative_eff_DR <- empirical_var_Ori/empirical_var_DR
 relative_eff_DROW <- empirical_var_Ori/empirical_var_DROW
 
-save(re_count, relative_eff_IPS, relative_eff_OW,
+save(re_count, step_size, relative_eff_IPS, relative_eff_OW,
      relative_eff_DR, relative_eff_DROW,
      empirical_var_Ori, avg_bias_Ori, mse_Ori,
      empirical_var_IPS, avg_bias_IPS, mse_IPS,
@@ -807,8 +807,8 @@ sim_df$bias <- c(avg_bias_Ori, avg_bias_IPS, avg_bias_OW, avg_bias_DR, avg_bias_
 sim_df$estimator <- c(rep("original",re_count), rep("IPS",re_count),
                       rep("OW",re_count), rep("DR",re_count), rep("DROW", re_count))
 sim_df$estimator <- as.factor(sim_df$estimator)
-sim_df$samplesize <- c(c(1:re_count)*20, c(1:re_count)*20, c(1:re_count)*20,
-                       c(1:re_count)*20, c(1:re_count)*20)
+sim_df$samplesize <- c(c(1:re_count)*step_size, c(1:re_count)*step_size, c(1:re_count)*step_size,
+                       c(1:re_count)*step_size, c(1:re_count)*step_size)
 
 sim_df <- sim_df[is.finite(rowSums(cbind(sim_df$variance, 
                                          sim_df$mse,
@@ -818,11 +818,11 @@ var_plot <- ggplot(sim_df, aes(x=samplesize, y = variance,
                                   color = estimator)) + 
   geom_point() + 
   geom_line(aes(group = estimator)) + 
-  scale_color_manual(values = c("original" = "black", "IPS" = "red",
-                                "OW" = "orange", "DR" = "gold", "DROW" = "brown"))+
+  scale_color_manual(values = c("original" = "black", "IPS" = "gold",
+                                "OW" = "orange", "DR" = "red", "DROW" = "brown"))+
   ggtitle("Variance comparison from Simulation") +
   xlab("Sample Size") + ylab("Variance") +
-  scale_x_continuous(breaks=seq(0,20*re_count,50)) + 
+  scale_x_continuous(breaks=seq(0,step_size*re_count,step_size)) + 
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
@@ -839,11 +839,11 @@ mse_plot <- ggplot(sim_df, aes(x=samplesize, y = mse,
                                   color = estimator)) + 
   geom_point() + 
   geom_line(aes(group = estimator)) + 
-  scale_color_manual(values = c("original" = "black", "IPS" = "red",
-                                "OW" = "orange", "DR" = "gold", "DROW" = "brown"))+
+  scale_color_manual(values = c("original" = "black", "IPS" = "gold",
+                                "OW" = "orange", "DR" = "red", "DROW" = "brown"))+
   ggtitle("MSE comparison from Simulation") +
   xlab("Sample Size") + ylab("MSE") +
-  scale_x_continuous(breaks=seq(0,20*re_count,50)) + 
+  scale_x_continuous(breaks=seq(0,step_size*re_count,step_size)) + 
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
@@ -861,11 +861,11 @@ bias_plot <- ggplot(sim_df, aes(x = samplesize, y = bias,
                                   color = estimator)) + 
   geom_point() + 
   geom_line(aes(group = estimator)) +
-  scale_color_manual(values = c("original" = "black", "IPS" = "red",
-                                "OW" = "orange", "DR" = "gold", "DROW" = "brown")) +
+  scale_color_manual(values = c("original" = "black", "IPS" = "gold",
+                                "OW" = "orange", "DR" = "red", "DROW" = "brown")) +
   ggtitle("Win Ratio Bias from Simulation") +
   xlab("Sample Size") + ylab("Bias") +
-  scale_x_continuous(breaks=seq(0,20*re_count,50)) +
+  scale_x_continuous(breaks=seq(0,step_size*re_count,step_size)) +
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
@@ -885,8 +885,8 @@ bias_plot
 re_df <- data.frame(c(relative_eff_IPS, relative_eff_OW, 
                       relative_eff_DR, relative_eff_DROW))
 colnames(re_df) <- "relative_eff"
-re_df$samplesize <- c(c(1:re_count)*20, c(1:re_count)*20, 
-                      c(1:re_count)*20, c(1:re_count)*20)
+re_df$samplesize <- c(c(1:re_count)*step_size, c(1:re_count)*step_size, 
+                      c(1:re_count)*step_size, c(1:re_count)*step_size)
 re_df$estimator <- c(rep("IPS",re_count), rep("OW",re_count), 
                      rep("DR",re_count), rep("DROW",re_count))
 re_df$estimator <- as.factor(re_df$estimator)
@@ -896,12 +896,12 @@ re_plot <- ggplot(re_df, aes(x=samplesize, y = relative_eff,
                              color = estimator)) + 
   geom_point() + 
   geom_line(aes(group = estimator)) +
-  scale_color_manual(values = c("IPS" = "red", "OW" = "orange", 
-                                "DR" = "gold", "DROW" = "brown")) +
+  scale_color_manual(values = c("IPS" = "gold", "OW" = "orange", 
+                                "DR" = "red", "DROW" = "brown")) +
   geom_hline(yintercept=1, linetype="dashed", color = "red") +
   ggtitle("Relative Efficiency from Simulation") +
   xlab("Sample Size") + ylab("Relative Efficiency") +
-  scale_x_continuous(breaks=seq(0,20*re_count,50)) +
+  scale_x_continuous(breaks=seq(0,step_size*re_count,step_size)) +
   theme(
     plot.title = element_text(color="red", size=12, face="bold.italic"),
     axis.title.x = element_text(size=12),
